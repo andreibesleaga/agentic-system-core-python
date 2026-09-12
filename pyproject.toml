@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-system-core"
+version = "0.0.2"
+authors = [
+  { name="Andrei Nicolae Besleaga" },
+]
+description = "A specification for publishing machine-discoverable knowledge bundles. This 0.0.x release reserves the package name; no runtime is published yet. The specification, JSON Schemas, ontology and conformance test vectors are the deliverable and are developed in the open."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://agenticsystemcore.com"
+"Bug Tracker" = "https://github.com/andreibesleaga/agentic-system-core/issues"
+
+[project.scripts]
+agsc = "agentic_system_core.cli:main"
