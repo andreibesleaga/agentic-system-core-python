@@ -1,5 +1,4 @@
 include README.md
-include RELEASE.md
 include LICENSE
 recursive-include src/agentic_system_core/data *.json
 recursive-include tests *.py

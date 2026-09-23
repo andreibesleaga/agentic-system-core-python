@@ -77,12 +77,24 @@ of it — the rule identifiers, the registered error codes and the declared
 version — derived from `spec/` by command; `--spec <dir>` derives the same index
 from a live `spec/` directory instead.
 
-`run-vectors` executes the vectors. **It runs two areas natively — `jcs` and
-`slug` — and names every other area as not run, with the reason.** Those two are
-the areas whose expected output follows from the vector's own input by a rule
-alone; every other area needs a Bundle build, a YAML reader with the schemas, a
-CommonMark parser, an RDF writer or the engine's own builders. Nothing is ever
-counted as a pass that was not executed, and nothing is silently skipped.
+`run-vectors` executes the vectors. **It runs seven areas natively — `build`,
+`discovery`, `frontmatter`, `graph`, `jcs`, `links` and `slug` — and names every
+other area as not run, with the reason.** Each of the seven is derived from the
+rule text of the specification alone, in the standard library:
+
+| Area | What this package implements for it |
+|---|---|
+| `frontmatter` | a reader for the closed YAML subset of AGSC-02-02 (failsafe scalars, each rejected construct under its own code, line numbers), the item checks of spec/02, and the drop-in adoption of AGSC-02-90…93 |
+| `slug` | the slug grammar and uniqueness |
+| `jcs` | RFC 8785 canonical JSON with NFC before sorting |
+| `links` | the fourteen Link keys and their inverses, the cycle and cluster-tree checks, heading anchors, and inline-link resolution over a small CommonMark 0.31.2 scanner (headings and inline links only, outside code; its subset is written down in `agentic_system_core/markdown.py`) |
+| `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, and the JSON-LD context of AGSC-06-32 with the compaction it round-trips |
+| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt` and the content version |
+| `discovery` | `/llms.txt` and `/llms-full.txt` byte for byte, reachability, the sitemap and robots facts, the link-set writer, and the discovery-document checks including the restricted-node rule of AGSC-11-20 |
+
+The other areas need a Bundle build, the engine's composition or governance
+modules, or its command-line surface. Nothing is ever counted as a pass that
+was not executed, and nothing is silently skipped.
 
 The pending list is the engine's: a file `{"pending": [ids], "reason": {…}}`,
 found beside the vectors or named with `--pending`.
@@ -130,11 +142,13 @@ version on PyPI. `agsc --version` prints both.
 
 ## The vector copies in this repository
 
-`tests/fixtures/vectors/` holds byte-identical copies of the `jcs` and `slug`
-vectors — the two areas this package runs — so that the test suite proves the
-promise without needing the engine checkout. When the engine is beside this
+`tests/fixtures/vectors/` holds byte-identical copies of the vectors of the
+seven areas this package runs, so that the test suite proves the promise
+without needing the engine checkout. When the engine is beside this
 repository, one test compares the copies with the originals byte for byte and
-fails if they have drifted.
+fails if they have drifted, and another runs the engine's own vector runner
+over the engine's live set and requires the two runners to agree on every
+vector of those seven areas.
 
 ## Equivalence with the engine's checker
 
@@ -162,3 +176,29 @@ suite is the Node tool in the equivalence test.
 ## Licence
 
 Apache-2.0. See `LICENSE`.
+
+The conformance vectors copied under `tests/fixtures/vectors/` and the rule index in
+`src/agentic_system_core/data/` come from the specification's distribution and keep the
+licences stated there (the engine repository's README and `LICENSE-CONTENT`).
+
+## How this is made
+
+This work is written and maintained by Andrei N. Besleaga with the help of AI
+assistants. A person decides what is written, an assistant drafts and checks it, and a
+person reads, edits and approves everything that is published and answers for it. Every
+published item records how its text was made and names the person accountable for it.
+Written with AI assistance, reviewed and published by a person.
+
+## What this does not claim
+
+This is the independent work of one person, published as it is, with no warranty of any
+kind and no liability for anything that follows from using it. Nothing in it is legal or
+professional advice. No standards body, foundation, company or institution named in this
+repository has reviewed, approved or is connected with this work, and it is not a document
+of the IETF, of the W3C or of any other body. Other product and organisation names are the
+marks of their owners and are used only to say what is being talked about. AgenticSystemCore™ is a trademark of Andrei N. Besleaga. Other names belong to their owners.
+Every right not expressly granted by the licences is reserved, and nothing here promises
+that the work or its addresses will stay available.
+
+© 2026 Andrei N. Besleaga. Code: Apache-2.0. Schemas, ontology, identifiers and the
+discovery document: CC0-1.0.

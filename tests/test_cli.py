@@ -77,7 +77,7 @@ def test_validate_wellknown_peer_and_dev_flags():
 def test_validate_vectors():
     code, out, _ = run(["validate-vectors", str(VECTORS)])
     assert code == 0
-    assert "10 input file(s) read" in out
+    assert "75 input file(s) read" in out
     code, out, _ = run(["validate-vectors", str(VECTORS), "--json"])
     assert code == 0
     assert parse_ijson(out)["verb"] == "validate-vectors"
@@ -114,23 +114,24 @@ def test_validate_vectors_root_option(tmp_path):
 def test_run_vectors():
     code, out, _ = run(["run-vectors", str(VECTORS)])
     assert code == 0
-    assert "10 pass" in out
+    assert "59 pass" in out
     code, out, _ = run(["run-vectors", str(VECTORS), "--json"])
-    assert parse_ijson(out)["areas_run"] == ["jcs", "slug"]
+    assert parse_ijson(out)["areas_run"] == [
+        "build", "discovery", "frontmatter", "graph", "jcs", "links", "slug"]
     code, out, _ = run(["run-vectors", str(VECTORS), "--level", "1"])
     assert code == 0
 
 
 def test_run_vectors_names_the_areas_it_did_not_run(tmp_path):
-    area = tmp_path / "graph"
+    area = tmp_path / "lint"
     area.mkdir()
-    (area / "graph-9001.json").write_bytes(
-        b'{"area":"graph","description":"A fixture.","expected":{},"id":"graph-9001",'
+    (area / "lint-9001.json").write_bytes(
+        b'{"area":"lint","description":"A fixture.","expected":{},"id":"lint-9001",'
         b'"input":{},"level":"required","rule":"AGSC-05-04"}\n')
     code, out, err = run(["run-vectors", str(tmp_path)])
     assert code == 0
-    assert "not run by this package: graph" in out
-    assert "not-run graph-9001" in err
+    assert "not run by this package: lint" in out
+    assert "not-run lint-9001" in err
 
 
 def test_run_vectors_usage_faults(tmp_path):

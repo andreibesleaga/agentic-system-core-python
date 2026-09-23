@@ -10,6 +10,11 @@ from agentic_system_core import vectors
 from conftest import ENGINE, VECTORS
 
 
+def vectors_module_areas():
+    """The areas this package runs natively, as the runner reports them."""
+    return ["build", "discovery", "frontmatter", "graph", "jcs", "links", "slug"]
+
+
 def codes(result):
     return sorted(one["code"] for one in result["findings"])
 
@@ -17,46 +22,48 @@ def codes(result):
 def test_the_shipped_vector_copies_pass_the_file_format_check():
     result, count, empty = vectors.validate(str(VECTORS))
     assert result["status"] == "pass", result["findings"]
-    assert count == 10
-    assert "jcs" not in empty and "slug" not in empty
-    assert "graph" in empty
+    assert count == 75
+    for area in vectors_module_areas():
+        assert area not in empty
+    assert "lint" in empty
 
 
 def test_every_vector_of_every_area_this_package_runs_passes():
     report, code = vectors.run(str(VECTORS))
     assert code == 0
     assert report["tally"]["fail"] == 0
-    assert report["tally"]["pass"] == 10
+    assert report["tally"]["pass"] == 59
+    assert report["tally"]["withdrawn"] == 16
     assert report["tally"]["not_run"] == 0
-    assert report["areas_run"] == ["jcs", "slug"]
+    assert report["areas_run"] == vectors_module_areas()
     assert report["areas_not_run"] == {}
-    assert "10 pass" in report["summary"]
+    assert "59 pass" in report["summary"]
 
 
 def test_a_level_selects_its_area_set():
     report, _ = vectors.run(str(VECTORS), level=0)
-    # Level 0 does not run jcs, so only the slug vectors are in scope.
-    assert report["total"] == 5
-    assert report["tally"]["pass"] == 5
+    # Level 0 runs frontmatter, slug, bundle and discovery only (AGSC-10-02).
+    assert report["total"] == 12 + 5 + 16
+    assert report["tally"]["pass"] == 12 + 5 + 9
     report, _ = vectors.run(str(VECTORS), level=3)
-    assert report["total"] == 10
+    assert report["total"] == 75
 
 
 def test_an_area_this_package_does_not_run_is_named_never_skipped(tmp_path):
-    area = tmp_path / "graph"
+    area = tmp_path / "lint"
     area.mkdir()
     vector = {
-        "area": "graph", "description": "A fixture.", "expected": {"nquads": ""},
-        "id": "graph-9001", "input": {}, "level": "required", "rule": "AGSC-05-04",
+        "area": "lint", "description": "A fixture.", "expected": {"output": ""},
+        "id": "lint-9001", "input": {}, "level": "required", "rule": "AGSC-05-04",
     }
-    (area / "graph-9001.json").write_bytes(
+    (area / "lint-9001.json").write_bytes(
         json.dumps(vector, separators=(",", ":")).encode("utf-8") + b"\n")
     report, code = vectors.run(str(tmp_path))
     assert code == 0
     assert report["tally"]["not_run"] == 1
     assert report["tally"]["skip"] == 0
     assert report["results"][0]["status"] == "not-run"
-    assert "graph" in report["areas_not_run"]
+    assert "lint" in report["areas_not_run"]
     assert "not run by this package" in report["summary"]
 
 
@@ -296,7 +303,7 @@ def test_the_bundled_index_agrees_with_the_live_specification():
 @pytest.mark.skipif(not (ENGINE / "tests" / "vectors").is_dir(),
                     reason="the engine checkout is not here")
 def test_the_shipped_copies_are_the_engines_bytes():
-    for area in ("jcs", "slug"):
+    for area in vectors_module_areas():
         for name in sorted(os.listdir(str(VECTORS / area))):
             ours = (VECTORS / area / name).read_bytes()
             theirs = (ENGINE / "tests" / "vectors" / area / name).read_bytes()

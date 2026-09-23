@@ -42,11 +42,12 @@ VERB = "validate-wellknown"
 
 #: AGSC-06-10 plus AGSC-06-35: the registered relation names a document may use.
 REGISTERED = frozenset([
-    "alternate", "author", "collection", "describedby", "item", "license",
+    "alternate", "author", "cite-as", "collection", "describedby", "item", "license",
     "related", "service-desc", "service-doc", "service-meta",
 ])
 #: AGSC-06-35: the related-system relations that MUST carry a media type.
-RELATED_ONLY = frozenset(["related", "service-desc", "service-meta", "collection", "item"])
+RELATED_ONLY = frozenset(["cite-as", "related", "service-desc", "service-meta", "collection",
+                          "item"])
 #: AGSC-06-10: the extension relation names, used as REL_BASE + name.
 EXTENSIONS = frozenset([
     "graph", "ontology", "context", "now", "skills", "ledger", "peer",
@@ -58,6 +59,10 @@ STRING_ATTRIBUTES = frozenset(["type", "title", "media"])
 #: Level 2 and above, `agsc-bundle-version` among them.
 LEVEL2_ATTRIBUTES = ("agsc-bundle-hash", "agsc-bundle-version", "agsc-counts",
                      "agsc-generated-at", "agsc-spec-version")
+#: AGSC-11-20: what a restricted node must omit, and what it must still carry.
+RESTRICTED_FORBIDDEN = ("agsc-bundle-hash", "agsc-bundle-version", "agsc-counts",
+                        "agsc-ledger-head")
+RESTRICTED_REQUIRED = ("agsc-generated-at", "agsc-spec-version")
 #: AGSC-11-16: the surface names a node may declare.
 SURFACES = frozenset(["llms-txt", "chunks", "mcp", "webmcp", "a2a-card", "solid", "responder"])
 SURFACE_NEEDS_VERSION = frozenset(["mcp", "webmcp", "a2a-card", "solid", "responder"])
@@ -90,6 +95,10 @@ class Source(object):
 
     def resolve_target(self, href, anchor):
         """The bytes of one target, or None when it cannot be checked offline."""
+        if self.kind == "memory":
+            # An in-memory document has no site beside it: every digest target is
+            # "not checkable offline", never an I/O error.
+            return None
         if self.kind == "url":
             self.reads += 1
             return self.fetcher(href, self.dev)[2]
@@ -113,6 +122,15 @@ class Source(object):
         self.reads += 1
         with open(candidate, "rb") as handle:
             return handle.read()
+
+
+def from_value(document, name="(memory)"):
+    """An in-memory source; a value is written in its canonical form plus one LF."""
+    if isinstance(document, (bytes, bytearray)):
+        data = bytes(document)
+    else:
+        data = (canonicalize_raw(document) + "\n").encode("utf-8")
+    return Source("memory", name, data)
 
 
 def load(target, allow_network=False, fetcher=None, dev=False):
@@ -248,6 +266,7 @@ def check(source, level, findings, dev=False):
             "link context members are not ordered as JSON member names (AGSC-06-08, AGSC-04-05)",
         )
 
+    restricted = _is_restricted(context)
     peers = []
     for relation in [name for name in keys if name != "anchor"]:
         extension = relation[len(REL_BASE):] if relation.startswith(REL_BASE) else None
@@ -328,17 +347,25 @@ def check(source, level, findings, dev=False):
                                        % (relation, href))
                     except TransportError as error:
                         report(error.code, "relation %s: %s" % (relation, error.message))
-            elif level >= 2 and artefact:
+            elif level >= 2 and artefact and not restricted:
                 report("AGSC-E202",
                        "relation %s: artefact link %s carries no digest (required at Level >= 2, "
                        "AGSC-06-08a)" % (relation, href))
-            if level >= 2 and relation == "describedby" and parsed.pathname.endswith("/graph.jsonld"):
-                for name in LEVEL2_ATTRIBUTES:
+            if restricted:
+                for name in RESTRICTED_FORBIDDEN:
+                    if name in target:
+                        report("AGSC-E210",
+                               "relation %s: %s is forbidden on a restricted node "
+                               "(AGSC-11-20, AGSC-09-93)" % (relation, name))
+            is_graph = relation == "describedby" and parsed.pathname.endswith("/graph.jsonld")
+            if level >= 2 and is_graph:
+                for name in (RESTRICTED_REQUIRED if restricted else LEVEL2_ATTRIBUTES):
                     if name not in target:
                         report("AGSC-E202",
                                "describedby %s: %s is required at Level >= 2 (AGSC-06-08)"
                                % (href, name))
-            if level >= 2 and extension == "ledger" and "agsc-ledger-head" not in target:
+            if level >= 2 and extension == "ledger" and not restricted \
+                    and "agsc-ledger-head" not in target:
                 report("AGSC-E202",
                        "rel#ledger: agsc-ledger-head is required at Level >= 2 (AGSC-06-08)")
             if relation in RELATED_ONLY and not isinstance(target.get("type"), str):
@@ -350,6 +377,15 @@ def check(source, level, findings, dev=False):
                 _check_surface(target, href, parsed, raw_anchor, source, report)
 
     return {"anchor": raw_anchor, "peers": peers}
+
+
+def _is_restricted(context):
+    """AGSC-11-20: ``agsc-visibility: ["restricted"]`` on the anchor's describedby link."""
+    targets = context.get("describedby")
+    if not isinstance(targets, list):
+        return False
+    return any(isinstance(one, dict) and one.get("agsc-visibility") == ["restricted"]
+               for one in targets)
 
 
 def _check_surface(target, href, parsed, anchor, source, report):
@@ -390,6 +426,27 @@ def _check_surface(target, href, parsed, anchor, source, report):
                    "rel#surface %s: target does not resolve: %s" % (name, error.message))
 
 
+def canonical_wellknown(result):
+    """The canonical well-known URL of a checked document's node."""
+    return resolve(result["anchor"], ".well-known/" + WELLKNOWN_SUFFIX)
+
+
+def mutual_findings(first_name, first, second_name, second):
+    """AGSC-10-12: each of two checked documents names the other under rel#peer."""
+    out = []
+    if canonical_wellknown(second) not in first["peers"]:
+        out.append(finding(
+            "AGSC-E907", first_name,
+            "resolved, not mutual: no rel#peer names %s (AGSC-10-12)"
+            % canonical_wellknown(second)))
+    if canonical_wellknown(first) not in second["peers"]:
+        out.append(finding(
+            "AGSC-E907", second_name,
+            "resolved, not mutual: no rel#peer names %s (AGSC-10-12)"
+            % canonical_wellknown(first)))
+    return out
+
+
 def validate(target, level=0, peer=None, dev=False, allow_network=False, fetcher=None):
     """Check one document, and a peer when given.  Returns (envelope, files read)."""
     findings = []
@@ -410,18 +467,8 @@ def validate(target, level=0, peer=None, dev=False, allow_network=False, fetcher
     if peer is not None:
         _, second = run(peer)
 
-        def canonical(result):
-            return resolve(result["anchor"], ".well-known/" + WELLKNOWN_SUFFIX)
-
         if first is not None and second is not None:
-            if canonical(second) not in first["peers"]:
-                findings.append(finding(
-                    "AGSC-E907", target,
-                    "resolved, not mutual: no rel#peer names %s (AGSC-10-12)" % canonical(second)))
-            if canonical(first) not in second["peers"]:
-                findings.append(finding(
-                    "AGSC-E907", peer,
-                    "resolved, not mutual: no rel#peer names %s (AGSC-10-12)" % canonical(first)))
+            findings.extend(mutual_findings(target, first, peer, second))
         elif not findings:  # pragma: no cover - a document that yields no result
             # always reports why, so this guard can only fire if that ever stops
             # being true; it is kept so the run can never end silently.
