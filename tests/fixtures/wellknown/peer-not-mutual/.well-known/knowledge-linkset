@@ -1,0 +1,1 @@
+{"linkset":[{"anchor":"https://peer.example/","https://w3id.org/agentic-system-core/rel#peer":[{"href":"https://other.example/.well-known/knowledge-linkset","type":"application/linkset+json"}]}]}

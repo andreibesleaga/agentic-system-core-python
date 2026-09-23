@@ -1,0 +1,78 @@
+# Publish to PyPI when a version tag is pushed.
+#
+# There is no token anywhere in this repository. PyPI's trusted publishing lets
+# this one workflow, in this one repository, exchange a short-lived GitHub OIDC
+# token for an upload token, which is why the publish job asks for
+# `id-token: write` and nothing else. The action's own README says: "To enter
+# the trusted publishing flow, configure this action's job with the
+# `id-token: write` permission and **without** an explicit username or password"
+# (https://github.com/pypa/gh-action-pypi-publish, read 2026-09-22).
+#
+# Every action is pinned to a commit, not a tag, so that a moved tag cannot
+# change what runs here.
+#
+# The owner does the one-time PyPI setup and pushes the tag: see RELEASE.md.
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions: {}
+
+jobs:
+  build:
+    name: build and test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: install the build and test tools
+        run: python -m pip install --upgrade pip build twine pytest coverage
+      - name: the tag must be the version in pyproject.toml
+        run: |
+          python - <<'PY'
+          import os, re, sys, tomllib
+          tag = os.environ['GITHUB_REF_NAME']
+          with open('pyproject.toml', 'rb') as handle:
+              version = tomllib.load(handle)['project']['version']
+          if tag != 'v' + version:
+              sys.exit('tag %s does not match version %s in pyproject.toml' % (tag, version))
+          print('tag %s matches version %s' % (tag, version))
+          PY
+      - name: tests
+        run: |
+          python -m pip install -e .
+          python -m coverage run -m pytest
+          python -m coverage report
+      - name: build the sdist and the wheel
+        run: python -m build
+      - name: check the distributions
+        run: python -m twine check --strict dist/*
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: distributions
+          path: dist/
+
+  publish:
+    name: publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/agentic-system-core
+    permissions:
+      id-token: write   # IMPORTANT: this permission is what trusted publishing needs
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: distributions
+          path: dist/
+      - name: publish
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

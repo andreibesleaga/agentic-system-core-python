@@ -1,0 +1,56 @@
+{
+  "linkset": [
+    {
+      "alternate": [
+        {
+          "digest": [
+            "sha-256=:yC2P46qwusnP5n9hPUQxKqiY8oF/WpuiWAhjPscqtiY=:"
+          ],
+          "href": "https://node.example/llms.txt",
+          "type": "text/plain"
+        }
+      ],
+      "anchor": "https://node.example/",
+      "describedby": [
+        {
+          "agsc-bundle-hash": [
+            "sha-256=:Hm7WXXfWNk7q7Vp0W6XEmFritwDdhdfPfwJ73ylKM/w=:"
+          ],
+          "agsc-counts": [
+            "concepts=1"
+          ],
+          "agsc-generated-at": [
+            "2026-01-01T00:00:00Z"
+          ],
+          "agsc-spec-version": [
+            "1.0.0-rc.6"
+          ],
+          "digest": [
+            "sha-256=:yj0WO6sFU4GCciYUBWjzvvfqrBh869doeOC2Pp5EI1Y=:"
+          ],
+          "href": "https://node.example/graph.jsonld",
+          "type": "application/ld+json",
+          "agsc-bundle-version": [
+            "v1.0.0"
+          ]
+        }
+      ],
+      "https://w3id.org/agentic-system-core/rel#surface": [
+        {
+          "agsc-access": [
+            "none"
+          ],
+          "agsc-surface": [
+            "llms-txt"
+          ],
+          "href": "https://node.example/llms.txt"
+        }
+      ],
+      "license": [
+        {
+          "href": "https://node.example/legal/"
+        }
+      ]
+    }
+  ]
+}
