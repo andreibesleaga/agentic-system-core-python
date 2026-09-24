@@ -242,6 +242,9 @@ def run_run_vectors(argv, out, err):
             for area in sorted(report["areas_not_run"]):
                 _write(out, "not run by this package: %s -- %s\n"
                        % (area, report["areas_not_run"][area]))
+        for identifier in sorted(report.get("vectors_not_run", {})):
+            _write(out, "not run by this package: %s -- %s\n"
+                   % (identifier, report["vectors_not_run"][identifier]))
     return code
 
 

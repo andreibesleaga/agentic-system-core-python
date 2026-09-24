@@ -18,8 +18,14 @@ here is either a rule of the specification or something Python already ships.
 ## Install
 
 ```
-pip install agentic-system-core
+pip install --pre agentic-system-core
 ```
+
+Until `1.0.0` is released, every version of this package is a release candidate
+(`1.0.0rc6` today), and pip installs a release candidate only when asked: use
+`--pre`, or name the version, `pip install "agentic-system-core==1.0.0rc6"`. The
+two `0.0.x` versions on PyPI only reserved the name, contain no code and are
+yanked, so a plain `pip install agentic-system-core` finds nothing to install.
 
 Python 3.9 or newer. To forward the other verbs you also need Node 22.12 or
 newer and the npm package:
@@ -27,6 +33,15 @@ newer and the npm package:
 ```
 npm install -g agentic-system-core
 ```
+
+**Two commands named `agsc`.** The npm package installs an `agsc` too, and it is
+the engine's command line: its verbs are exactly the sixteen of the specification
+(AGSC-09-07), so `validate-wellknown`, `validate-vectors` and `run-vectors` are not
+among them, and it refuses them with `AGSC-E001`. The `agsc` here is a checker
+distribution (the AGSC-09-90 contracts) that runs those three itself and hands
+every other verb to the engine. With both installed, whichever directory comes
+first on your `PATH` decides which `agsc` you get; `python -m agentic_system_core.cli`
+always reaches this one.
 
 ## What runs here
 
@@ -89,7 +104,7 @@ rule text of the specification alone, in the standard library:
 | `jcs` | RFC 8785 canonical JSON with NFC before sorting |
 | `links` | the fourteen Link keys and their inverses, the cycle and cluster-tree checks, heading anchors, and inline-link resolution over a small CommonMark 0.31.2 scanner (headings and inline links only, outside code; its subset is written down in `agentic_system_core/markdown.py`) |
 | `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, and the JSON-LD context of AGSC-06-32 with the compaction it round-trips |
-| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt` and the content version |
+| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt`, the content version and the staleness comparison; the two `build` vectors that need a whole Bundle build are reported as not run, by name |
 | `discovery` | `/llms.txt` and `/llms-full.txt` byte for byte, reachability, the sitemap and robots facts, the link-set writer, and the discovery-document checks including the restricted-node rule of AGSC-11-20 |
 
 The other areas need a Bundle build, the engine's composition or governance
@@ -196,9 +211,13 @@ kind and no liability for anything that follows from using it. Nothing in it is 
 professional advice. No standards body, foundation, company or institution named in this
 repository has reviewed, approved or is connected with this work, and it is not a document
 of the IETF, of the W3C or of any other body. Other product and organisation names are the
-marks of their owners and are used only to say what is being talked about. AgenticSystemCore™ is a trademark of Andrei N. Besleaga. Other names belong to their owners.
+marks of their owners and are used only to say what is being talked about.
 Every right not expressly granted by the licences is reserved, and nothing here promises
 that the work or its addresses will stay available.
+
+## Notice
+
+AgenticSystemCore™ is a trademark of Andrei N. Besleaga. Other names belong to their owners.
 
 © 2026 Andrei N. Besleaga. Code: Apache-2.0. Schemas, ontology, identifiers and the
 discovery document: CC0-1.0.

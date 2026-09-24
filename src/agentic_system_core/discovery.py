@@ -18,7 +18,7 @@ import base64
 import hashlib
 
 from . import REL_BASE
-from .graph import CONTENT_USE_TERMS
+from .graph import CONTENT_USE_TERMS, terms_for
 from .jcs import canonicalize
 from .links import TYPE_PLURAL
 
@@ -83,7 +83,7 @@ def _header(bundle, spec_version, bundle_version, generated_at):
         "<!-- agsc:provenance",
         "bundle: %s" % _neutral(_base(bundle["base"]) + "/"),
         "license: %s" % _neutral(bundle.get("license_prose", CONTENT_USE_TERMS)),
-        "terms: %s" % CONTENT_USE_TERMS,
+        "terms: %s" % _neutral(terms_for(bundle.get("license_prose", CONTENT_USE_TERMS))),
         "spec_version: %s" % _neutral(spec_version),
         "bundle_version: %s" % _neutral(bundle_version),
         "generated_at: %s" % _neutral(generated_at),

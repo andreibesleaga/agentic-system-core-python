@@ -22,7 +22,7 @@ def codes(result):
 def test_the_shipped_vector_copies_pass_the_file_format_check():
     result, count, empty = vectors.validate(str(VECTORS))
     assert result["status"] == "pass", result["findings"]
-    assert count == 75
+    assert count == 80
     for area in vectors_module_areas():
         assert area not in empty
     assert "lint" in empty
@@ -32,21 +32,24 @@ def test_every_vector_of_every_area_this_package_runs_passes():
     report, code = vectors.run(str(VECTORS))
     assert code == 0
     assert report["tally"]["fail"] == 0
-    assert report["tally"]["pass"] == 59
-    assert report["tally"]["withdrawn"] == 16
-    assert report["tally"]["not_run"] == 0
+    assert report["tally"]["pass"] == 61
+    assert report["tally"]["withdrawn"] == 17
+    # Two build vectors need a whole Bundle build: reported not run, by name.
+    assert report["tally"]["not_run"] == 2
+    assert sorted(report["vectors_not_run"]) == ["build-0015", "build-0017"]
     assert report["areas_run"] == vectors_module_areas()
     assert report["areas_not_run"] == {}
-    assert "59 pass" in report["summary"]
+    assert "61 pass" in report["summary"]
+    assert "2 not run by this package" in report["summary"]
 
 
 def test_a_level_selects_its_area_set():
     report, _ = vectors.run(str(VECTORS), level=0)
     # Level 0 runs frontmatter, slug, bundle and discovery only (AGSC-10-02).
-    assert report["total"] == 12 + 5 + 16
-    assert report["tally"]["pass"] == 12 + 5 + 9
+    assert report["total"] == 12 + 5 + 17
+    assert report["tally"]["pass"] == 12 + 5 + 10
     report, _ = vectors.run(str(VECTORS), level=3)
-    assert report["total"] == 75
+    assert report["total"] == 80
 
 
 def test_an_area_this_package_does_not_run_is_named_never_skipped(tmp_path):
@@ -291,7 +294,7 @@ def test_the_bundled_spec_index_is_the_one_the_specification_declares():
     assert index["spec_version"] == "1.0.0-rc.6"
     assert "AGSC-04-05" in index["rule_ids"]
     assert "AGSC-E201" in index["error_codes"]
-    assert len(index["error_codes"]) == 90
+    assert len(index["error_codes"]) == 91  # AGSC-E416 registered 2026-09-24
 
 
 @pytest.mark.skipif(not (ENGINE / "spec").is_dir(), reason="the engine checkout is not here")

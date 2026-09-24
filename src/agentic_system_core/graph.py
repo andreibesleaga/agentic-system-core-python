@@ -36,6 +36,14 @@ CONCEPT_TYPES = ("concept", "lesson")
 #: AGSC-06-18: the Content Use Terms identifier, a constant of the specification.
 CONTENT_USE_TERMS = "LicenseRef-AgenticSystemCore-Content-Use-1.0"
 
+
+def terms_for(license_prose):
+    """AGSC-06-18 as amended at rc.6: the Content Use Terms identifier where the node
+    adopted the terms, else the node's own prose licence in its place."""
+    if license_prose is None or str(license_prose) == CONTENT_USE_TERMS:
+        return CONTENT_USE_TERMS
+    return str(license_prose)
+
 #: Link key -> (forward property, inverse property or None).  AGSC-03-01 table, AGSC-05-16.
 LINK_PROPERTIES = {
     "related": (SKOS + "related", SKOS + "related"),
@@ -125,7 +133,7 @@ def dataset(items, site_base, bundle=None, attachment_bytes=None):
             add(scheme, ASC + "specVersion", Literal(bundle["spec_version"]))
         licence = bundle.get("license_prose", CONTENT_USE_TERMS)
         add(scheme, SCHEMA + "license", Literal(licence))
-        add(scheme, SCHEMA + "usageInfo", Literal(CONTENT_USE_TERMS))
+        add(scheme, SCHEMA + "usageInfo", Literal(terms_for(licence)))
 
     by_slug = dict((item["slug"], item) for item in items)
     for item in items:
@@ -166,7 +174,7 @@ def dataset(items, site_base, bundle=None, attachment_bytes=None):
             add(iri, ASC + "consumes", Literal(name))
         if bundle is not None:
             add(iri, SCHEMA + "license", Literal(bundle.get("license_prose", CONTENT_USE_TERMS)))
-            add(iri, SCHEMA + "usageInfo", Literal(CONTENT_USE_TERMS))
+            add(iri, SCHEMA + "usageInfo", Literal(terms_for(bundle.get("license_prose", CONTENT_USE_TERMS))))
 
         for index, source in enumerate(item.get("sources") or [], 1):
             node = "%s#source-%d" % (iri, index)

@@ -16,7 +16,9 @@ version, derived from ``spec/`` by command — and ``--spec <dir>`` derives the
 same index from a live ``spec/`` directory instead.
 
 **The runner** executes the vectors of the areas this package implements
-natively and reports every other area as not run, by name, with the reason.  It
+natively and reports every other area as not run, by name, with the reason;
+a vector of a run area whose input needs a whole Bundle build is reported as
+not run the same way, under ``vectors_not_run``.  It
 never reports a pass for something it did not execute.  The pending list is the
 engine's: a file ``{"pending": [ids], "reason": {id: text}}`` whose entries are
 skipped with their reason.
@@ -326,6 +328,7 @@ def run(directory, level=None, pending_path=None, surfaces=("mcp", "webmcp")):
     tally = {"fail": 0, "not_run": 0, "pass": 0, "pending": 0, "skip": 0, "withdrawn": 0}
     results = []
     not_run_areas = {}
+    not_run_vectors = {}
     for vector in vectors:
         outcome = run_one(vector, pending, reason, surfaces)
         status = outcome["status"]
@@ -339,7 +342,10 @@ def run(directory, level=None, pending_path=None, surfaces=("mcp", "webmcp")):
                 tally["pending"] += 1
         elif status == "not-run":
             tally["not_run"] += 1
-            not_run_areas[vector.get("area")] = outcome["detail"]
+            if vector.get("area") in AREA_RUNNERS:
+                not_run_vectors[vector.get("id")] = outcome["detail"]
+            else:
+                not_run_areas[vector.get("area")] = outcome["detail"]
         else:
             tally["fail"] += 1
         results.append({
@@ -360,6 +366,7 @@ def run(directory, level=None, pending_path=None, surfaces=("mcp", "webmcp")):
         "summary": summary_line(tally, len(vectors)),
         "tally": tally,
         "total": len(vectors),
+        "vectors_not_run": dict(sorted(not_run_vectors.items())),
         "verb": RUN_VERB,
         "version": __version__,
     }

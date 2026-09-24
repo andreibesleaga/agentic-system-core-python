@@ -49,7 +49,15 @@ def _linkset_case(case, want):
     """One disc-0015 case: a hand-written document checked at its Level."""
     out = []
     document = case["wellknown"]
-    errors, _, _ = _check(document, case["level"])
+    # disc-0015 states its Level-2 document without the rel#ledger link that the same
+    # rc.6 pass made part of Level 2 (disc-0017); the reference handler builds that
+    # document with the link, so the verdict here is asked of the same document with it.
+    probe = document
+    level2 = case["level"] >= 2 and not any(
+        one.get("agsc-visibility") == ["restricted"] for one in document["linkset"][0].get("describedby", []))
+    if level2 and _LEDGER_REL not in document["linkset"][0]:
+        probe = _with_ledger(document, case["base"], "a" * 64)
+    errors, _, _ = _check(probe, case["level"])
     name = case["name"]
     known = {"name"}
     if "valid" in want:
@@ -76,6 +84,56 @@ def _linkset_case(case, want):
             hit = [one for one in findings if one["code"] == want["presence_would_be"]["code"]
                    and one["severity"] == want["presence_would_be"]["severity"]]
             out.append((name + ":presence-of-" + attribute, bool(hit), shown(findings)))
+    unknown = sorted(set(want) - known)
+    if unknown:
+        out.append((name + ":unhandled", False, shown(unknown)))
+    return out
+
+
+_LEDGER_REL = REL_BASE + "ledger"
+_EMPTY_DIGEST = "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:"
+
+
+def _with_ledger(document, base, head):
+    """A copy of ``document`` whose link context carries the rel#ledger link."""
+    out = copy.deepcopy(document)
+    context = out["linkset"][0]
+    context[_LEDGER_REL] = [{"agsc-ledger-head": [head], "digest": [_EMPTY_DIGEST],
+                            "href": base + "/ledger.jsonl", "type": "application/jsonl"}]
+    out["linkset"][0] = dict(sorted(context.items(), key=lambda item: wellknown.utf16_key(item[0])))
+    return out
+
+
+def _level2_document(base, restricted):
+    """A Level-2 discovery document of a node at ``base``, public or restricted."""
+    describedby = {"agsc-generated-at": ["2026-09-16T00:00:00Z"], "agsc-spec-version": [SPEC_VERSION],
+                   "href": base + "/graph.jsonld", "type": "application/ld+json"}
+    if restricted:
+        describedby["agsc-visibility"] = ["restricted"]
+    else:
+        describedby.update({"agsc-bundle-hash": [_EMPTY_DIGEST], "agsc-bundle-version": ["v1.4.0"],
+                            "agsc-counts": ["clusters=0", "concepts=1", "episodes=0", "gates=0",
+                                            "lessons=0", "procedures=0"],
+                            "digest": [_EMPTY_DIGEST]})
+    describedby = dict(sorted(describedby.items()))
+    return {"linkset": [{"anchor": base + "/", "describedby": [describedby],
+                         "license": [{"href": base + "/legal/"}]}]}
+
+
+def _ledger_case(case, want):
+    """One disc-0017 case: a Level-2 document with or without the rel#ledger link."""
+    restricted = case.get("visibility") == "restricted"
+    document = _level2_document(case["base"], restricted)
+    if case.get("ledger_head") is not None:
+        document = _with_ledger(document, case["base"], case["ledger_head"])
+    errors, _, _ = _check(document, case["level"])
+    name = case["name"]
+    out = [(name + ":valid", (errors == []) == want["valid"], shown(errors))]
+    known = {"name", "valid"}
+    if "findings" in want:
+        known.add("findings")
+        codes = [{"code": one["code"], "severity": one["severity"]} for one in errors]
+        out.append((name + ":findings", codes == want["findings"], shown(codes)))
     unknown = sorted(set(want) - known)
     if unknown:
         out.append((name + ":unhandled", False, shown(unknown)))
@@ -118,7 +176,12 @@ def run(vector):
             if want is None:
                 items.append((case["name"], False, "no expectation for this case"))
                 continue
-            handler = _linkset_case if "wellknown" in case else _robots_case
+            if "wellknown" in case:
+                handler = _linkset_case
+            elif "ledger_head" in case:
+                handler = _ledger_case
+            else:
+                handler = _robots_case
             items.extend(handler(case, want))
         missing = sorted(set(wanted) - set(one["name"] for one in given["cases"]))
         if missing:

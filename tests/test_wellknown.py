@@ -67,8 +67,8 @@ def test_the_envelope_counts_errors_and_warnings_apart():
     ("surface-llms-wrong-path", 0, ["AGSC-E210"]),
     ("surface-target-missing", 0, ["AGSC-E210"]),
     ("surface-multi-value", 0, ["AGSC-E210", "AGSC-E210"]),
-    ("non-canonical-bytes", 2, ["AGSC-E601"]),
-    ("no-trailing-lf", 2, ["AGSC-E601"]),
+    ("non-canonical-bytes", 2, ["AGSC-E202", "AGSC-E601"]),
+    ("no-trailing-lf", 2, ["AGSC-E202", "AGSC-E601"]),
     ("invalid-utf8", 0, ["AGSC-E201"]),
     ("empty-file", 0, ["AGSC-E201"]),
     ("not-in-wellknown", 0, ["AGSC-E210", "AGSC-E901", "AGSC-E901"]),
@@ -80,8 +80,9 @@ def test_each_broken_document_raises_the_expected_codes(name, level, expected):
 def test_level_2_requires_the_graph_attributes_and_every_digest():
     # Five bundle facts of AGSC-06-08 as amended at rc.6 (added
     # agsc-bundle-version) plus the one artefact link with no digest.
-    assert codes(run("missing-level2-attributes", level=2)) == ["AGSC-E202"] * 6
-    assert codes(run("missing-digest", level=2)) == ["AGSC-E202"]
+    # One more: neither fixture links the ledger, which Level 2 includes (AGSC-10-04).
+    assert codes(run("missing-level2-attributes", level=2)) == ["AGSC-E202"] * 7
+    assert codes(run("missing-digest", level=2)) == ["AGSC-E202"] * 2
     # At Level 0 and 1 neither is required.
     assert run("missing-level2-attributes", level=1)["status"] == "pass"
 
@@ -160,6 +161,7 @@ def test_a_url_is_read_through_the_injected_fetcher():
         "https://node.example/.well-known/knowledge-linkset": body,
         "https://node.example/llms.txt": b"# node.example\n\n> A fixture.\n",
         "https://node.example/graph.jsonld": b"{}\n",
+        "https://node.example/ledger.jsonl": (WELLKNOWN / "good" / "ledger.jsonl").read_bytes(),
     }
 
     def fetcher(href, dev=False):
@@ -233,7 +235,9 @@ def test_a_directory_target_with_a_digest_resolves_to_its_index(tmp_path):
     (root / "knowledge-linkset").write_bytes(
         json.dumps(document, separators=(",", ":"), sort_keys=True).encode("utf-8") + b"\n")
     result, _ = wellknown.validate(str(root / "knowledge-linkset"), level=2)
-    assert result["status"] == "pass", result["findings"]
+    # The document links no ledger, which Level 2 includes (AGSC-10-04): that is the
+    # only finding, so the directory target itself resolved.
+    assert codes(result) == ["AGSC-E202"], result["findings"]
 
 
 def test_a_profile_link_header_on_the_wrong_media_type_is_still_reported():

@@ -40,7 +40,7 @@ def test_a_short_extension_name_is_expanded(document):
 
 def test_every_link_at_once(document):
     every = document.links()
-    assert len(every) == len(document.relations()) == 5
+    assert len(every) == len(document.relations()) == 6
     assert "anchor" not in document.relations()
 
 

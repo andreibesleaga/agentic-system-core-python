@@ -1,7 +1,9 @@
 """Area ``build`` — AGSC-06-16/06-23 (search), AGSC-06-33 (fragments), AGSC-06-17
 (headers), AGSC-06-36 (security.txt) and AGSC-04-25/06-22 (content version).
 
-Every member of ``expected`` is checked; an unknown member is a failure.
+Every member of ``expected`` is checked; an unknown member is a failure.  A
+vector whose input is a whole Bundle (``bundle`` or inline ``files``) needs a
+site build this package does not carry, and is reported as not run, by name.
 """
 
 from .. import site
@@ -61,9 +63,16 @@ def _version(case, want):
     return out
 
 
+#: Input shapes that need a full Bundle build (AGSC-04-02, AGSC-04-07).
+NEEDS_BUILD = ("bundle", "files")
+
+
 def run(vector):
     given = vector["input"]
     expected = vector["expected"]
+    if any(shape in given for shape in NEEDS_BUILD):
+        return {"status": "not-run",
+                "detail": "needs a full Bundle build; not implemented by this package"}
     items = []
     handled = set()
 
@@ -71,7 +80,10 @@ def run(vector):
         handled.add(name)
         return name in expected
 
-    if "items" in given:
+    if "build_instant" in given and have("stale"):
+        got = site.stale_items(given["items"], given["build_instant"])
+        items.append(("stale", got == expected["stale"], shown(got)))
+    elif "items" in given:
         value = site.search_index(given["items"])
         if have("search"):
             items.append(("search", canonicalize(value) == canonicalize(expected["search"]),

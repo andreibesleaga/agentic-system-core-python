@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77"]
+requires = ["setuptools==82.0.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -33,7 +33,7 @@ dependencies = []
 Homepage = "https://agenticsystemcore.com"
 Source = "https://github.com/andreibesleaga/agentic-system-core-python"
 Specification = "https://agenticsystemcore.com/specs/agentic-knowledge/"
-"Bug Tracker" = "https://github.com/andreibesleaga/agentic-system-core/issues"
+"Bug Tracker" = "https://github.com/andreibesleaga/agentic-system-core-python/issues"
 
 [project.scripts]
 agsc = "agentic_system_core.cli:console_main"

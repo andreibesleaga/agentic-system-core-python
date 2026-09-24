@@ -64,7 +64,7 @@ def test_both_runners_agree_on_every_vector_of_every_area_this_package_runs():
     compared = 0
     disagreements = []
     for result in report["results"]:
-        if result["area"] not in AREA_RUNNERS:
+        if result["area"] not in AREA_RUNNERS or result["status"] == "not-run":
             continue
         compared += 1
         area, status = theirs[result["id"]]

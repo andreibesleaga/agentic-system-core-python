@@ -18,9 +18,23 @@ def vector(identifier):
     raise KeyError(identifier)
 
 
+def _needs_build(data):
+    """A build vector whose input is a whole Bundle is reported not run, never judged."""
+    return data["area"] == "build" and any(k in data["input"] for k in ("bundle", "files"))
+
+
 RUN = [one for one in sorted(VECTORS.rglob("*.json"))
        if json.loads(one.read_bytes().decode("utf-8"))["level"] != "withdrawn"
-       and json.loads(one.read_bytes().decode("utf-8"))["area"] not in ("jcs", "slug")]
+       and json.loads(one.read_bytes().decode("utf-8"))["area"] not in ("jcs", "slug")
+       and not _needs_build(json.loads(one.read_bytes().decode("utf-8")))]
+
+
+def test_a_vector_that_needs_a_whole_build_is_reported_not_run():
+    for identifier in ("build-0015", "build-0017"):
+        data = vector(identifier)
+        result = AREA_RUNNERS["build"](data)
+        assert result["status"] == "not-run"
+        assert "full Bundle build" in result["detail"]
 
 
 @pytest.mark.parametrize("path", RUN, ids=[one.stem for one in RUN])
@@ -66,7 +80,7 @@ def test_case_lists_with_missing_or_extra_cases_fail():
 
 
 def test_wrong_bytes_are_caught():
-    for identifier, member in (("graph-0015", "turtle"), ("graph-0021", "nquads"),
+    for identifier, member in (("graph-0026", "turtle"), ("graph-0021", "nquads"),
                                ("disc-0013", "output"), ("build-0003", "output"),
                                ("fm-0008", "output")):
         data = vector(identifier)

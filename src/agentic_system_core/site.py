@@ -270,6 +270,17 @@ def ledger_kind(element):
     return "commit"
 
 
+def stale_items(items, instant):
+    """AGSC-02-11: an item is stale when its ``stale_after`` is EARLIER than the
+    build instant, by comparison only.  Both are AGSC-02-06 instants, so their
+    code-point order is their time order; an equal value is not stale, and an
+    item with no ``stale_after`` never is.  Sorted by slug (AGSC-04-13)."""
+    stale = [one["slug"] for one in items
+             if one.get("stale_after") is not None
+             and str(one["stale_after"]) < str(instant)]
+    return sorted(stale)
+
+
 def now_line(bundle_version, generated_at, bundle_hash, spec_version):
     """AGSC-06-22: the four values, in order, with the fixed separators."""
     return "content version %s, built at %s, fingerprint %s, specification %s" % (

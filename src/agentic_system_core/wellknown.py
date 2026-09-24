@@ -267,6 +267,12 @@ def check(source, level, findings, dev=False):
         )
 
     restricted = _is_restricted(context)
+    # AGSC-10-04 / AGSC-09-93: the derived ledger is part of Level 2, so a public
+    # node claiming it publishes /ledger.jsonl and links it.
+    ledger = context.get(REL_BASE + "ledger")
+    if level >= 2 and not restricted and not (isinstance(ledger, list) and ledger):
+        report("AGSC-E202", "no rel#ledger link: a Level >= 2 node publishes /ledger.jsonl "
+                            "and links it (AGSC-10-04, AGSC-09-93)")
     peers = []
     for relation in [name for name in keys if name != "anchor"]:
         extension = relation[len(REL_BASE):] if relation.startswith(REL_BASE) else None
