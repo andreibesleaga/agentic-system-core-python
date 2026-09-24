@@ -15,6 +15,16 @@ engine may come later; when it does, this text will change.
 Standard library only. No runtime dependency, and none is planned: everything
 here is either a rule of the specification or something Python already ships.
 
+**What the specification is, and what is different about it.** AgenticSystemCore turns
+a folder of Markdown files into a knowledge node that people and agents can find,
+verify and cite. Other systems have some of these properties; to our knowledge none has
+them together: a knowledge base a machine can find through registered web mechanisms,
+a digest on everything it points at, a typed graph with a published vocabulary, bytes
+pinned by conformance vectors, a person on every merge — directly, or by a standing
+rule that person recorded — and a runnable harness out of the same files, with no
+server. This package is the Python reader and checker of such nodes; maintainers read
+[docs/MAINTAINING.md](docs/MAINTAINING.md).
+
 ## Install
 
 ```
@@ -27,7 +37,7 @@ Until `1.0.0` is released, every version of this package is a release candidate
 two `0.0.x` versions on PyPI only reserved the name, contain no code and are
 yanked, so a plain `pip install agentic-system-core` finds nothing to install.
 
-Python 3.9 or newer. To forward the other verbs you also need Node 22.12 or
+Python 3.9 or newer. To forward the other verbs you also need Node 22.13 or
 newer and the npm package:
 
 ```
