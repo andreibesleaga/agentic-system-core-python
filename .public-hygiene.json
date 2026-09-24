@@ -1,0 +1,17 @@
+{
+  "_": "Allow-list of tools/public-hygiene (in the engine repository) for this package. Every entry says why the hit is public by intent.",
+  "built": [],
+  "skip": [],
+  "allow": [
+    {
+      "check": "process",
+      "path": "tests/fixtures/vectors/**",
+      "reason": "a byte copy of the engine's frozen conformance vectors (withdraw and add, never edit); their notes carry the rules' trace tags"
+    },
+    {
+      "check": "internal-note",
+      "path": "tests/fixtures/vectors/**",
+      "reason": "a byte copy of the engine's frozen conformance vectors; their notes record how a rule was decided"
+    }
+  ]
+}

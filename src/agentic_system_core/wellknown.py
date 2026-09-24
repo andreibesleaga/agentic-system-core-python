@@ -55,7 +55,7 @@ EXTENSIONS = frozenset([
 ])
 #: RFC 9264 section 4.2.4.2: the target attributes whose value is a plain string.
 STRING_ATTRIBUTES = frozenset(["type", "title", "media"])
-#: AGSC-06-08 as amended at rc.6 (D113): the attributes the graph link carries at
+#: AGSC-06-08 as amended at rc.6: the attributes the graph link carries at
 #: Level 2 and above, `agsc-bundle-version` among them.
 LEVEL2_ATTRIBUTES = ("agsc-bundle-hash", "agsc-bundle-version", "agsc-counts",
                      "agsc-generated-at", "agsc-spec-version")

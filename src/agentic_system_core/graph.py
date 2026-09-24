@@ -17,7 +17,7 @@ Derived from the rule text of spec/05 (and AGSC-11-22 for ``asc:retiredAt``):
 
 The Bundle node and the two licence rows are emitted when the Bundle's
 configuration is given (``bundle``).  Every line of ``graph.nq`` is a quad
-whose graph name is the Bundle IRI (AGSC-04-15 as amended at rc.6, PY2-01).
+whose graph name is the Bundle IRI (AGSC-04-15 as amended at rc.6).
 """
 
 import hashlib
@@ -235,7 +235,7 @@ def dataset(items, site_base, bundle=None, attachment_bytes=None):
 
 
 def to_nquads(items, site_base, bundle=None, attachment_bytes=None):
-    """``graph.nq``: every line a quad named by the Bundle IRI (AGSC-04-15 as amended, PY2-01)."""
+    """``graph.nq``: every line a quad named by the Bundle IRI (AGSC-04-15 as amended)."""
     return nquads(dataset(items, site_base, bundle, attachment_bytes),
                   graph=bundle_iri(site_base))
 

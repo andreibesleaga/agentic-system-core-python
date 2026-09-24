@@ -78,7 +78,7 @@ def test_each_broken_document_raises_the_expected_codes(name, level, expected):
 
 
 def test_level_2_requires_the_graph_attributes_and_every_digest():
-    # Five bundle facts of AGSC-06-08 as amended at rc.6 (D113 added
+    # Five bundle facts of AGSC-06-08 as amended at rc.6 (added
     # agsc-bundle-version) plus the one artefact link with no digest.
     assert codes(run("missing-level2-attributes", level=2)) == ["AGSC-E202"] * 6
     assert codes(run("missing-digest", level=2)) == ["AGSC-E202"]
