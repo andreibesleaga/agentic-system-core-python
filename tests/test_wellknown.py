@@ -1,7 +1,6 @@
 """The discovery-file checker, over the fixture set and the two sites' files."""
 
 import json
-import os
 
 import pytest
 
@@ -221,7 +220,8 @@ def test_an_http_anchor_is_accepted_under_dev():
 
 
 def test_a_directory_target_with_a_digest_resolves_to_its_index(tmp_path):
-    import hashlib, base64
+    import hashlib
+    import base64
     root = tmp_path / ".well-known"
     root.mkdir()
     page = tmp_path / "legal" / "index.html"

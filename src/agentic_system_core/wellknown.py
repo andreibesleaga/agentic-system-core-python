@@ -50,8 +50,8 @@ RELATED_ONLY = frozenset(["cite-as", "related", "service-desc", "service-meta", 
                           "item"])
 #: AGSC-06-10: the extension relation names, used as REL_BASE + name.
 EXTENSIONS = frozenset([
-    "graph", "ontology", "context", "now", "skills", "ledger", "peer",
-    "surface", "contribute", "access",
+    "access", "boards", "context", "contribute", "graph", "ledger", "now",
+    "ontology", "peer", "signature", "skills", "surface",
 ])
 #: RFC 9264 section 4.2.4.2: the target attributes whose value is a plain string.
 STRING_ATTRIBUTES = frozenset(["type", "title", "media"])

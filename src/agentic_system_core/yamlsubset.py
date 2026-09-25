@@ -165,7 +165,7 @@ def flow_sequence(text, line):
             if item is items[-1] and len(items) > 1:
                 continue
             raise YamlError("AGSC-E201", "empty entry in a flow sequence", line)
-        if ":" in item and not item.strip()[:1] in "'\"" and re.search(r":(\s|$)", item):
+        if ":" in item and item.strip()[:1] not in "'\"" and re.search(r":(\s|$)", item):
             raise YamlError("AGSC-E105", "flow mapping entry in a flow sequence", line)
         out.append(scalar(item, line))
     return out
@@ -258,7 +258,7 @@ class _Reader(object):
             line = self.number(self.index)
             rest = body[1:].lstrip(" ")
             child_indent = indent + (len(body) - len(rest))
-            if _KEY.match(rest) and not rest[:1] in "'\"[":
+            if _KEY.match(rest) and rest[:1] not in "'\"[":
                 # a mapping that starts on the dash line
                 self.lines[self.index] = " " * child_indent + rest
                 out.append(self.mapping(child_indent))
