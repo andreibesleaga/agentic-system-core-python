@@ -19,20 +19,22 @@ def vector(identifier):
 
 
 def _needs_build(data):
-    """A build vector whose input is a whole Bundle is reported not run, never judged."""
-    return data["area"] == "build" and any(k in data["input"] for k in ("bundle", "files"))
+    """A vector whose input is a whole Bundle is reported not run, never judged."""
+    given = data["input"]
+    if data["area"] == "build":
+        return any(k in given for k in ("bundle", "files"))
+    return data["area"] == "discovery" and "bundle" in given and "items" not in given
 
 
 RUN = [one for one in sorted(VECTORS.rglob("*.json"))
-       if json.loads(one.read_bytes().decode("utf-8"))["level"] != "withdrawn"
-       and json.loads(one.read_bytes().decode("utf-8"))["area"] not in ("jcs", "slug")
+       if json.loads(one.read_bytes().decode("utf-8"))["area"] not in ("jcs", "slug")
        and not _needs_build(json.loads(one.read_bytes().decode("utf-8")))]
 
 
 def test_a_vector_that_needs_a_whole_build_is_reported_not_run():
-    for identifier in ("build-0015", "build-0017"):
+    for identifier in ("build-0015", "build-0017", "disc-0018"):
         data = vector(identifier)
-        result = AREA_RUNNERS["build"](data)
+        result = AREA_RUNNERS[data["area"]](data)
         assert result["status"] == "not-run"
         assert "full Bundle build" in result["detail"]
 

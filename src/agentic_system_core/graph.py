@@ -17,7 +17,7 @@ Derived from the rule text of spec/05 (and AGSC-11-22 for ``asc:retiredAt``):
 
 The Bundle node and the two licence rows are emitted when the Bundle's
 configuration is given (``bundle``).  Every line of ``graph.nq`` is a quad
-whose graph name is the Bundle IRI (AGSC-04-15 as amended at rc.6).
+whose graph name is the Bundle IRI (AGSC-04-15).
 """
 
 import hashlib
@@ -38,7 +38,7 @@ CONTENT_USE_TERMS = "LicenseRef-AgenticSystemCore-Content-Use-1.0"
 
 
 def terms_for(license_prose):
-    """AGSC-06-18 as amended at rc.6: the Content Use Terms identifier where the node
+    """AGSC-06-18: the Content Use Terms identifier where the node
     adopted the terms, else the node's own prose licence in its place."""
     if license_prose is None or str(license_prose) == CONTENT_USE_TERMS:
         return CONTENT_USE_TERMS
@@ -243,7 +243,7 @@ def dataset(items, site_base, bundle=None, attachment_bytes=None):
 
 
 def to_nquads(items, site_base, bundle=None, attachment_bytes=None):
-    """``graph.nq``: every line a quad named by the Bundle IRI (AGSC-04-15 as amended)."""
+    """``graph.nq``: every line a quad named by the Bundle IRI (AGSC-04-15)."""
     return nquads(dataset(items, site_base, bundle, attachment_bytes),
                   graph=bundle_iri(site_base))
 

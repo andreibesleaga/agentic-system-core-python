@@ -77,8 +77,8 @@ def test_each_broken_document_raises_the_expected_codes(name, level, expected):
 
 
 def test_level_2_requires_the_graph_attributes_and_every_digest():
-    # Five bundle facts of AGSC-06-08 as amended at rc.6 (added
-    # agsc-bundle-version) plus the one artefact link with no digest.
+    # The five bundle facts of AGSC-06-08 (agsc-bundle-version among them)
+    # plus the one artefact link with no digest.
     # One more: neither fixture links the ledger, which Level 2 includes (AGSC-10-04).
     assert codes(run("missing-level2-attributes", level=2)) == ["AGSC-E202"] * 7
     assert codes(run("missing-digest", level=2)) == ["AGSC-E202"] * 2

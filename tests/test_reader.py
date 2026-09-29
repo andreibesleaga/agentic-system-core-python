@@ -151,3 +151,22 @@ def test_an_attribute_with_several_values_is_returned_whole(document):
 
 def test_a_digest_whose_base64_is_malformed_is_refused():
     assert not reader.verify_digest("sha-256=:AAAAA:", b"")
+
+
+def test_members_of_a_later_version_are_ignored_and_kept_as_they_stand():
+    # AGSC-00-21: a reader never fails on, and never rewrites, a member it does not know
+    # in a chunk line, a chunk manifest or a discovery document of its MAJOR.
+    line = '{"id":"a","text":"one","x-later":{"k":[1,2]}}\n'
+    assert reader.read_chunks(line) == [{"id": "a", "text": "one", "x-later": {"k": [1, 2]}}]
+    manifest = '{"later":true,"lines_total":7,"shards":["/chunks-01.jsonl"]}'
+    assert reader.read_chunks(manifest)["later"] is True
+    later = {"linkset": [{
+        "anchor": "https://a.example/",
+        "https://w3id.org/agentic-system-core/rel#later": [
+            {"agsc-later": ["x"], "href": "https://a.example/later.json"}],
+        "describedby": [{"agsc-spec-version": ["1.9.0"], "href": "https://a.example/graph.jsonld"}],
+    }]}
+    node = reader.DiscoveryDocument(later)
+    assert node.links("later")[0].attribute("agsc-later") == "x"
+    assert node.peers() == [] and node.surfaces() == {}
+    assert reader.read_graph('{"@context":{},"later":1}') == {"@context": {}, "later": 1}

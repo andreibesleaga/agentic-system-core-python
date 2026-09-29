@@ -1,6 +1,8 @@
-"""Area ``discovery`` — spec/06 §6.2–6.4 and AGSC-10-12, AGSC-11-20.
+"""Area ``discovery`` — spec/06 §6.2–6.4 and AGSC-10-12, AGSC-11-20, AGSC-09-93.
 
-Every member of ``expected`` is checked; an unknown member is a failure.
+Every member of ``expected`` is checked; an unknown member is a failure.  A
+vector whose input is a whole Bundle (``bundle``) needs a site build this package
+does not carry, and is reported as not run, by name.
 """
 
 import copy
@@ -49,14 +51,20 @@ def _linkset_case(case, want):
     """One disc-0015 case: a hand-written document checked at its Level."""
     out = []
     document = case["wellknown"]
-    # disc-0015 states its Level-2 document without the rel#ledger link that the same
-    # rc.6 pass made part of Level 2 (disc-0017); the reference handler builds that
+    # disc-0015 states its Level-2 document without the rel#ledger link that Level 2
+    # includes (disc-0017, AGSC-10-04); the reference handler builds that
     # document with the link, so the verdict here is asked of the same document with it.
     probe = document
     level2 = case["level"] >= 2 and not any(
         one.get("agsc-visibility") == ["restricted"] for one in document["linkset"][0].get("describedby", []))
     if level2 and _LEDGER_REL not in document["linkset"][0]:
         probe = _with_ledger(document, case["base"], "a" * 64)
+    elif case["level"] >= 2 and "digest" not in _describedby(document):
+        # A restricted node still carries the digest of the targets it serves openly,
+        # /graph.jsonld among them (AGSC-11-20); the case states the bundle facts only,
+        # and the writer always adds that digest, so the verdict is asked with it.
+        probe = copy.deepcopy(document)
+        _describedby(probe)["digest"] = [_EMPTY_DIGEST]
     errors, _, _ = _check(probe, case["level"])
     name = case["name"]
     known = {"name"}
@@ -108,13 +116,15 @@ def _level2_document(base, restricted):
     """A Level-2 discovery document of a node at ``base``, public or restricted."""
     describedby = {"agsc-generated-at": ["2026-09-16T00:00:00Z"], "agsc-spec-version": [SPEC_VERSION],
                    "href": base + "/graph.jsonld", "type": "application/ld+json"}
+    # /graph.jsonld is served openly even by a restricted node, so its digest stays
+    # (AGSC-11-20).
+    describedby["digest"] = [_EMPTY_DIGEST]
     if restricted:
         describedby["agsc-visibility"] = ["restricted"]
     else:
         describedby.update({"agsc-bundle-hash": [_EMPTY_DIGEST], "agsc-bundle-version": ["v1.4.0"],
                             "agsc-counts": ["clusters=0", "concepts=1", "episodes=0", "gates=0",
-                                            "lessons=0", "procedures=0"],
-                            "digest": [_EMPTY_DIGEST]})
+                                            "lessons=0", "procedures=0"]})
     describedby = dict(sorted(describedby.items()))
     return {"linkset": [{"anchor": base + "/", "describedby": [describedby],
                          "license": [{"href": base + "/legal/"}]}]}
@@ -133,6 +143,35 @@ def _ledger_case(case, want):
     if "findings" in want:
         known.add("findings")
         codes = [{"code": one["code"], "severity": one["severity"]} for one in errors]
+        out.append((name + ":findings", codes == want["findings"], shown(codes)))
+    unknown = sorted(set(want) - known)
+    if unknown:
+        out.append((name + ":unhandled", False, shown(unknown)))
+    return out
+
+
+def _reader_case(case, want):
+    """One disc-0019 case: a received document read by a reader of a given version.
+
+    The case is about one unknown relation: of a newer MINOR it is the warning
+    AGSC-E506 and nothing else, of another MAJOR the error AGSC-E209 (AGSC-00-21,
+    AGSC-09-93).  ``valid`` is judged on every error; ``findings`` on the relation
+    findings (AGSC-E209, AGSC-E506), because this checker also applies the Level-2
+    digest rule and AGSC-00-23 to a document of another MAJOR, which the case does
+    not state."""
+    name = case["name"]
+    mine = SPEC_VERSION.split("-")[0].split(".")[:2]
+    reader = str(case["reader_version"]).split("-")[0].split(".")[:2]
+    if reader != mine:
+        return [(name + ":reader", False, "this package reads as %s, not %s"
+                 % (SPEC_VERSION, case["reader_version"]))]
+    errors, findings, _ = _check(case["document"], case["level"])
+    out = [(name + ":valid", (errors == []) == want["valid"], shown(errors))]
+    known = {"name", "valid"}
+    if "findings" in want:
+        known.add("findings")
+        codes = [{"code": one["code"], "severity": one["severity"]} for one in findings
+                 if one["code"] in ("AGSC-E209", "AGSC-E506")]
         out.append((name + ":findings", codes == want["findings"], shown(codes)))
     unknown = sorted(set(want) - known)
     if unknown:
@@ -162,6 +201,9 @@ def _robots_case(case, want):
 def run(vector):
     given = vector["input"]
     expected = vector["expected"]
+    if "bundle" in given and "items" not in given:
+        return {"status": "not-run",
+                "detail": "needs a full Bundle build; not implemented by this package"}
     items = []
     handled = set()
 
@@ -178,6 +220,8 @@ def run(vector):
                 continue
             if "wellknown" in case:
                 handler = _linkset_case
+            elif "reader_version" in case:
+                handler = _reader_case
             elif "ledger_head" in case:
                 handler = _ledger_case
             else:
@@ -276,7 +320,7 @@ def run(vector):
         if have("relations_allowed"):
             # Every relation the vector lists is admitted by the checker, and every
             # relation the writer uses is one the vector lists.  Equality is not
-            # asserted: AGSC-06-10 grows by a MINOR (cite-as joined it at rc.6).
+            # asserted: AGSC-06-10 may grow by a MINOR version.
             allowed = set(wellknown.REGISTERED) | set(
                 REL_BASE + one for one in wellknown.EXTENSIONS)
             refused = [one for one in expected["relations_allowed"] if one not in allowed]

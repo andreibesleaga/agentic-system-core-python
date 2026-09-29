@@ -19,6 +19,8 @@ these shape checks, so this checker uses the same code for the same fault as the
 Node tool does, under the precedence paragraph: AGSC-E201 for document shape,
 media type and order; AGSC-E202 for a missing REQUIRED attribute; AGSC-E204 for
 a malformed digest; AGSC-E209 for a relation outside AGSC-06-10/06-35;
+AGSC-E506 (a warning) for a relation or a target attribute of a newer MINOR,
+which is ignored (AGSC-00-21, AGSC-09-93);
 AGSC-E210 for a surface declaration that disagrees with the node; AGSC-E601 for
 non-canonical bytes at Level 2 and above; AGSC-E901/E902/E904/E905/E907 for
 input and transport faults.
@@ -32,7 +34,7 @@ import json
 import os
 import re
 
-from . import MEDIA_TYPE, PROFILE_URI, REL_BASE, WELLKNOWN_SUFFIX
+from . import MEDIA_TYPE, PROFILE_URI, REL_BASE, SPEC_VERSION, WELLKNOWN_SUFFIX
 from .diagnostics import envelope, finding
 from .jcs import canonicalize_raw, compare_utf16, parse_ijson, utf16_key
 from .net import MAX_BYTES, TransportError
@@ -53,16 +55,30 @@ EXTENSIONS = frozenset([
     "access", "boards", "context", "contribute", "graph", "ledger", "now",
     "ontology", "peer", "signature", "skills", "surface",
 ])
-#: RFC 9264 section 4.2.4.2: the target attributes whose value is a plain string.
+#: AGSC-06-08 and AGSC-11-16 (with AGSC-06-35's `profile` and RFC 9264 section
+#: 4.2.4.1's `hreflang`): every target attribute this version defines.  A document of
+#: a newer MINOR may carry others; they are ignored with a warning (AGSC-00-21,
+#: AGSC-09-93).
+KNOWN_ATTRIBUTES = frozenset([
+    "agsc-access", "agsc-bundle-hash", "agsc-bundle-version", "agsc-contribute-mode",
+    "agsc-counts", "agsc-generated-at", "agsc-ledger-head", "agsc-spec-version",
+    "agsc-surface", "agsc-surface-version", "agsc-tombstone", "agsc-visibility", "digest",
+    "hreflang", "media", "profile", "title", "title*", "type",
+])
+#: RFC 9264 section 4.2.4.1: the target attributes whose value is a plain string.
 STRING_ATTRIBUTES = frozenset(["type", "title", "media"])
-#: AGSC-06-08 as amended at rc.6: the attributes the graph link carries at
+#: AGSC-06-08: the attributes the graph link carries at
 #: Level 2 and above, `agsc-bundle-version` among them.
 LEVEL2_ATTRIBUTES = ("agsc-bundle-hash", "agsc-bundle-version", "agsc-counts",
                      "agsc-generated-at", "agsc-spec-version")
-#: AGSC-11-20: what a restricted node must omit, and what it must still carry.
+#: AGSC-11-20: what a restricted node must omit.
 RESTRICTED_FORBIDDEN = ("agsc-bundle-hash", "agsc-bundle-version", "agsc-counts",
                         "agsc-ledger-head")
-RESTRICTED_REQUIRED = ("agsc-generated-at", "agsc-spec-version")
+#: AGSC-11-20: the targets a restricted node serves unauthenticated, and so the only
+#: ones whose `digest` it may publish (its Level-0 view).
+OPEN_WHEN_RESTRICTED = ("/graph.jsonld", "/llms.txt")
+#: AGSC-04-25: the grammar of a content version.
+VERSION_GRAMMAR = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$")
 #: AGSC-11-16: the surface names a node may declare.
 SURFACES = frozenset(["llms-txt", "chunks", "mcp", "webmcp", "a2a-card", "solid", "responder"])
 SURFACE_NEEDS_VERSION = frozenset(["mcp", "webmcp", "a2a-card", "solid", "responder"])
@@ -266,17 +282,51 @@ def check(source, level, findings, dev=False):
             "link context members are not ordered as JSON member names (AGSC-06-08, AGSC-04-05)",
         )
 
-    restricted = _is_restricted(context)
-    # AGSC-10-04 / AGSC-09-93: the derived ledger is part of Level 2, so a public
-    # node claiming it publishes /ledger.jsonl and links it.
+    graph_link = _graph_link(context)
+    restricted = isinstance(graph_link.get("agsc-visibility"), list) and "restricted" in [
+        str(one) for one in graph_link["agsc-visibility"]]
     ledger = context.get(REL_BASE + "ledger")
-    if level >= 2 and not restricted and not (isinstance(ledger, list) and ledger):
+    if restricted:
+        # AGSC-11-20: a restricted node omits its content facts and its ledger link.
+        for name in RESTRICTED_FORBIDDEN:
+            if name in graph_link:
+                report("AGSC-E210",
+                       'a restricted node must omit "%s": per-type population, the fingerprint, '
+                       "the content version and the ledger head are content facts (AGSC-11-20)"
+                       % name)
+        if isinstance(ledger, list) and ledger:
+            report("AGSC-E210", "a restricted node publishes no rel#ledger link (AGSC-11-20)")
+    elif level >= 2 and not (isinstance(ledger, list) and ledger):
+        # AGSC-10-04 / AGSC-09-93: the derived ledger is part of Level 2, so a public
+        # node claiming it publishes /ledger.jsonl and links it.
         report("AGSC-E202", "no rel#ledger link: a Level >= 2 node publishes /ledger.jsonl "
                             "and links it (AGSC-10-04, AGSC-09-93)")
+    declared, newer = _declared_version(context)
+    bundle_version = graph_link.get("agsc-bundle-version")
+    if isinstance(bundle_version, list):
+        if len(bundle_version) != 1:
+            report("AGSC-E210", "agsc-bundle-version carries exactly one value (AGSC-06-08, "
+                                "AGSC-04-25)")
+        elif VERSION_GRAMMAR.match(str(bundle_version[0])) is None:
+            report("AGSC-E204", "agsc-bundle-version %s is outside the grammar of AGSC-04-25"
+                   % _compact(str(bundle_version[0])))
+        # AGSC-00-23: the attribute is defined from specification MAJOR 1 (AGSC-04-25).
+        major = re.match(r"^(\d+)\.", declared) if declared is not None else None
+        if major is not None and int(major.group(1)) < 1:
+            report("AGSC-E210", "the node publishes agsc-bundle-version while declaring "
+                                "agsc-spec-version %s, which does not define it (AGSC-00-23, "
+                                "AGSC-04-25)" % _compact(declared))
+    bundle_hash = graph_link.get("agsc-bundle-hash")
     peers = []
     for relation in [name for name in keys if name != "anchor"]:
         extension = relation[len(REL_BASE):] if relation.startswith(REL_BASE) else None
         if relation not in REGISTERED and not (extension is not None and extension in EXTENSIONS):
+            if newer:
+                report("AGSC-E506",
+                       "relation %s is not defined by this version; the document declares the "
+                       "newer %s, so it is ignored (AGSC-00-21, AGSC-09-93)"
+                       % (_compact(relation), declared), severity="warn")
+                continue
             report(
                 "AGSC-E209",
                 "relation %s is neither a registered name of AGSC-06-10/06-35 nor a "
@@ -311,12 +361,18 @@ def check(source, level, findings, dev=False):
             for name in target:
                 if name == "href":
                     continue
+                if newer and name not in KNOWN_ATTRIBUTES:
+                    report("AGSC-E506",
+                           "relation %s: target attribute %s is not defined by this version; the "
+                           "document declares the newer %s, so it is ignored (AGSC-00-21, "
+                           "AGSC-09-93)" % (relation, name, declared), severity="warn")
+                    continue
                 value = target[name]
                 if name in STRING_ATTRIBUTES:
                     if not isinstance(value, str):
                         report("AGSC-E201",
                                "relation %s: target attribute %s must be a string "
-                               "(RFC 9264 section 4.2.4.2)" % (relation, name))
+                               "(RFC 9264 section 4.2.4.1)" % (relation, name))
                 elif name == "title*":
                     if not isinstance(value, list):
                         report("AGSC-E201",
@@ -332,9 +388,23 @@ def check(source, level, findings, dev=False):
                 same_origin
                 and not parsed.pathname.endswith("/")
                 and relation not in ("license", "service-doc")
-                and extension not in ("surface", "peer")
+                and extension not in ("surface", "peer", "signature")
             )
+            opened = same_origin and parsed.pathname.endswith(OPEN_WHEN_RESTRICTED)
             digest = target.get("digest")
+            if restricted and "digest" in target and not opened:
+                report("AGSC-E210",
+                       "relation %s: a restricted node must omit the digest of %s, a target it "
+                       "does not serve unauthenticated (AGSC-11-20)" % (relation, href))
+            # AGSC-06-08 / AGSC-04-15: the bundle hash is the SHA-256 of graph.nq, so where
+            # both are published it equals the digest of the rel#graph link to it.
+            if (extension == "graph" and parsed.pathname.endswith("/graph.nq")
+                    and isinstance(digest, list) and isinstance(bundle_hash, list)
+                    and bundle_hash and digest
+                    and str(bundle_hash[0]) != str(digest[0])):
+                report("AGSC-E210",
+                       "agsc-bundle-hash %s is not the digest of %s, the bundle hash of "
+                       "AGSC-04-15 (AGSC-06-08)" % (_compact(str(bundle_hash[0])), href))
             if "digest" in target:
                 if (not isinstance(digest, list) or len(digest) != 1
                         or not isinstance(digest[0], str) or _DIGEST.match(digest[0]) is None):
@@ -353,20 +423,14 @@ def check(source, level, findings, dev=False):
                                        % (relation, href))
                     except TransportError as error:
                         report(error.code, "relation %s: %s" % (relation, error.message))
-            elif level >= 2 and artefact and not restricted:
+            elif level >= 2 and artefact and not (restricted and not opened):
                 report("AGSC-E202",
                        "relation %s: artefact link %s carries no digest (required at Level >= 2, "
                        "AGSC-06-08a)" % (relation, href))
-            if restricted:
-                for name in RESTRICTED_FORBIDDEN:
-                    if name in target:
-                        report("AGSC-E210",
-                               "relation %s: %s is forbidden on a restricted node "
-                               "(AGSC-11-20, AGSC-09-93)" % (relation, name))
             is_graph = relation == "describedby" and parsed.pathname.endswith("/graph.jsonld")
             if level >= 2 and is_graph:
-                for name in (RESTRICTED_REQUIRED if restricted else LEVEL2_ATTRIBUTES):
-                    if name not in target:
+                for name in LEVEL2_ATTRIBUTES:
+                    if name not in target and not (restricted and name in RESTRICTED_FORBIDDEN):
                         report("AGSC-E202",
                                "describedby %s: %s is required at Level >= 2 (AGSC-06-08)"
                                % (href, name))
@@ -385,13 +449,40 @@ def check(source, level, findings, dev=False):
     return {"anchor": raw_anchor, "peers": peers}
 
 
-def _is_restricted(context):
-    """AGSC-11-20: ``agsc-visibility: ["restricted"]`` on the anchor's describedby link."""
+_MAJOR_MINOR = re.compile(r"^(\d+)\.(\d+)(?:\.|$)")
+
+
+def _major_minor(version):
+    match = _MAJOR_MINOR.match(str(version))
+    return (int(match.group(1)), int(match.group(2))) if match else None
+
+
+def _graph_link(context):
+    """The describedby target naming the graph: the node's own declaration is read there."""
     targets = context.get("describedby")
-    if not isinstance(targets, list):
-        return False
-    return any(isinstance(one, dict) and one.get("agsc-visibility") == ["restricted"]
-               for one in targets)
+    if isinstance(targets, list):
+        for one in targets:
+            if isinstance(one, dict) and isinstance(one.get("href"), str) \
+                    and one["href"].endswith("/graph.jsonld"):
+                return one
+    return {}
+
+
+def _declared_version(context):
+    """AGSC-00-21 / AGSC-09-93: the ``agsc-spec-version`` the document declares on the
+    describedby link to its graph, and whether it is this checker's MAJOR with a newer
+    MINOR.  Only then are unknown relations and attributes ignored; a document of
+    another MAJOR has no such tolerance."""
+    value = _graph_link(context).get("agsc-spec-version")
+    if not isinstance(value, list) or not value:
+        return None, False
+    declared = str(value[0])
+    theirs, mine = _major_minor(declared), _major_minor(SPEC_VERSION)
+    newer = theirs is not None and mine is not None and theirs[0] == mine[0] \
+        and theirs[1] > mine[1]
+    return declared, newer
+
+
 
 
 def _check_surface(target, href, parsed, anchor, source, report):

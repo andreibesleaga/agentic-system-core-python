@@ -17,7 +17,7 @@ here is either a rule of the specification or something Python already ships.
 
 **What the specification is, and what is different about it.** AgenticSystemCore turns
 a folder of Markdown files into a knowledge node that people and agents can find,
-verify and cite. Other systems have some of these properties; to our knowledge none has
+verify and cite. Other systems have some of these properties; to the author's knowledge none has
 them together: a knowledge base a machine can find through registered web mechanisms,
 a digest on everything it points at, a typed graph with a published vocabulary, bytes
 pinned by conformance vectors, a person on every merge — directly, or by a standing
@@ -72,7 +72,13 @@ agsc validate-wellknown www/.well-known/knowledge-linkset \
 Levels 0 to 3 mean what the specification says they mean. At Level 0 and 1 the
 shape, the names, the ordering and the digest form are checked. At Level 2 and
 above the document must also be canonical bytes, every artefact link must carry
-a digest, and the graph link must carry its four extra attributes.
+a digest, the graph link must carry its five bundle facts, and the ledger must be
+linked with its head. A node that declares itself `restricted` must instead omit
+its content facts, its ledger link and the digest of every target it does not
+serve openly (AGSC-11-20). A document that declares a newer MINOR of the same
+MAJOR may use relations and attributes this version does not define: they are
+ignored with the warning `AGSC-E506`, never reported as errors; a document of
+another MAJOR gets no such tolerance (AGSC-00-21, AGSC-09-93).
 
 When the document is a file inside a `.well-known/` directory, every
 same-origin target is resolved on disk and its digest is verified against the
@@ -145,6 +151,11 @@ manifest as it stands when the file is one. `read_graph` reads `graph.jsonld` as
 plain JSON — no RDF library, no triples; turning it into a graph is a job for a
 library you choose.
 
+A member the reader does not know — in a chunk line, a chunk manifest, the graph or
+a discovery document of a later version of the specification — is neither refused
+nor rewritten: it is kept as it stands, and the calls above simply do not read it
+(AGSC-00-21).
+
 A digest is an RFC 9530 dictionary member, whose value RFC 9530 defines as "a
 Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded
 version of the byte output produced by the digest calculation" — base64 between
@@ -213,6 +224,8 @@ assistants. A person decides what is written, an assistant drafts and checks it,
 person reads, edits and approves everything that is published and answers for it. Every
 published item records how its text was made and names the person accountable for it.
 Written with AI assistance, reviewed and published by a person.
+The assistance covered text and code alike. This package calls no AI model. What an
+assistant or agent writes from this work is its own output, not a statement by the author.
 
 ## What this does not claim
 

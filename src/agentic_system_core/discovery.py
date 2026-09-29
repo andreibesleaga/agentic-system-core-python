@@ -197,7 +197,8 @@ def linkset(base, level=2, artefacts=None, facts=None, peers=(), restricted=Fals
     ``spec_version``, ``generated_at``, ``counts``, ``bundle_hash``,
     ``bundle_version`` and ``ledger_head``.  Level 0 omits every digest and every
     ``agsc-*`` attribute (AGSC-06-08a); a restricted node omits the four of
-    AGSC-11-20 and carries ``agsc-visibility``.
+    AGSC-11-20, the ledger link and the digest of every target it does not serve
+    unauthenticated, and carries ``agsc-visibility``.
     """
     root = _base(base)
     artefacts = artefacts or {}
@@ -206,7 +207,7 @@ def linkset(base, level=2, artefacts=None, facts=None, peers=(), restricted=Fals
 
     def target(route, media_type, attributes=None):
         link = {"href": root + route, "type": media_type}
-        if full and not restricted:
+        if full and (not restricted or route in ("/graph.jsonld", "/llms.txt")):
             link["digest"] = [digest(artefacts.get(route, b""))]
         for name, value in (attributes or {}).items():
             if value is not None:
@@ -232,12 +233,11 @@ def linkset(base, level=2, artefacts=None, facts=None, peers=(), restricted=Fals
         REL_BASE + "graph": [target("/graph.nq", "application/n-quads"),
                              target("/graph.ttl", "text/turtle")],
     }
-    if full:
-        ledger = {"href": root + "/ledger.jsonl", "type": "application/jsonl"}
-        if not restricted:
-            ledger["digest"] = [digest(artefacts.get("/ledger.jsonl", b""))]
-            ledger["agsc-ledger-head"] = [facts.get("ledger_head")]
-        context[REL_BASE + "ledger"] = [ledger]
+    if full and not restricted:
+        context[REL_BASE + "ledger"] = [{
+            "agsc-ledger-head": [facts.get("ledger_head")],
+            "digest": [digest(artefacts.get("/ledger.jsonl", b""))],
+            "href": root + "/ledger.jsonl", "type": "application/jsonl"}]
     if peers:
         context[REL_BASE + "peer"] = [{"href": one} for one in sorted(peers)]
     return {"linkset": [context]}

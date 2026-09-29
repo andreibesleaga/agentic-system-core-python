@@ -195,12 +195,46 @@ def test_sitemap_robots_and_linkset_writers():
 def test_a_restricted_node_that_publishes_a_forbidden_fact_is_e210():
     document = discovery.linkset("https://a.example/", level=2, restricted=True,
                                  facts={"generated_at": "T", "spec_version": "S"})
-    document["linkset"][0]["https://w3id.org/agentic-system-core/rel#ledger"][0][
-        "agsc-ledger-head"] = ["x"]
+    assert "https://w3id.org/agentic-system-core/rel#ledger" not in document["linkset"][0]
+    document["linkset"][0]["describedby"][0]["agsc-counts"] = ["concepts=1"]
     findings = []
     wellknown.check(wellknown.from_value(document), 2, findings)
     assert [one["code"] for one in findings] == ["AGSC-E210"]
-    assert wellknown._is_restricted({"describedby": "x"}) is False
+    # A restricted node publishes no digest of a target it gates, and no ledger link.
+    document["linkset"][0]["describedby"][0].pop("agsc-counts")
+    context = document["linkset"][0]
+    context["https://w3id.org/agentic-system-core/rel#graph"][0]["digest"] = [
+        "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:"]
+    context["https://w3id.org/agentic-system-core/rel#ledger"] = [
+        {"href": "https://a.example/ledger.jsonl", "type": "application/jsonl"}]
+    findings = []
+    wellknown.check(wellknown.from_value(document), 2, findings)
+    assert [one["code"] for one in findings] == ["AGSC-E210", "AGSC-E210"]
+
+
+def test_the_bundle_hash_is_the_digest_of_graph_nq_and_the_version_follows_its_grammar():
+    document = discovery.linkset("https://a.example/", level=2, facts={
+        "generated_at": "T", "spec_version": "1.0.0", "counts": ["concepts=0"],
+        "bundle_hash": "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:",
+        "bundle_version": "v1.0.0", "ledger_head": "0" * 64})
+    assert _findings(document) == []
+    document["linkset"][0]["describedby"][0]["agsc-bundle-hash"] = [
+        "sha-256=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:"]
+    assert _findings(document) == [("AGSC-E210", "error")]
+    document = discovery.linkset("https://a.example/", level=0)
+    graph = document["linkset"][0]["describedby"][0]
+    graph["agsc-bundle-version"] = ["v1", "v2"]
+    assert _findings(document) == [("AGSC-E210", "error")]
+    graph["agsc-bundle-version"] = ["-bad"]
+    assert _findings(document) == [("AGSC-E204", "error")]
+    graph["agsc-bundle-version"] = ["v2.0.0"]
+    # AGSC-00-23: an EARLIER major that does not define the attribute is a fault;
+    # a later major is not judged by a 1.x checker (AGSC-09-93).
+    graph["agsc-spec-version"] = ["0.9.0"]
+    assert _findings(document) == [("AGSC-E210", "error")]
+    graph["agsc-spec-version"] = ["2.0.0"]
+    assert ("AGSC-E210", "error") not in _findings(document)
+    assert wellknown._graph_link({"describedby": "x"}) == {}
 
 
 def test_cite_as_is_an_admitted_related_system_relation_that_carries_a_type():
@@ -214,3 +248,45 @@ def test_cite_as_is_an_admitted_related_system_relation_that_carries_a_type():
     findings = []
     wellknown.check(wellknown.from_value(document), 0, findings)
     assert [one["code"] for one in findings] == ["AGSC-E209"]
+
+
+def _declaring(version):
+    """A Level-0 document whose graph link declares ``version``, carrying one relation
+    and one target attribute this version of the specification does not define."""
+    document = discovery.linkset("https://a.example/", level=0)
+    context = document["linkset"][0]
+    context["describedby"][0]["agsc-spec-version"] = [version]
+    context["describedby"][0]["agsc-later"] = ["x"]
+    context["https://w3id.org/agentic-system-core/rel#later"] = [
+        {"href": "https://a.example/later.json", "type": "application/json"}]
+    return document
+
+
+def _findings(document, level=0):
+    findings = []
+    wellknown.check(wellknown.from_value(document), level, findings)
+    return [(one["code"], one["severity"]) for one in findings]
+
+
+def test_a_newer_minor_of_the_same_major_is_read_with_warnings_only():
+    # AGSC-00-21 / AGSC-09-93: an unknown relation and an unknown target attribute of a
+    # document declaring a newer MINOR are ignored, each with the warning AGSC-E506.
+    found = _findings(_declaring("1.9.0"))
+    assert found == [("AGSC-E506", "warn"), ("AGSC-E506", "warn")]
+    findings = []
+    wellknown.check(wellknown.from_value(_declaring("1.9.0")), 0, findings)
+    assert all("1.9.0" in one["message"] for one in findings)
+
+
+def test_another_major_or_the_same_minor_gets_no_tolerance():
+    # The unknown relation is AGSC-E209 again; the unknown attribute is a well-formed
+    # array of strings, which this version does not otherwise police.
+    assert _findings(_declaring("2.0.0")) == [("AGSC-E209", "error")]
+    assert _findings(_declaring("1.0.0")) == [("AGSC-E209", "error")]
+    assert _findings(_declaring("not a version")) == [("AGSC-E209", "error")]
+
+
+def test_a_newer_minor_still_checks_the_attributes_this_version_defines():
+    document = _declaring("1.9.0")
+    document["linkset"][0]["describedby"][0]["type"] = ["application/ld+json"]
+    assert ("AGSC-E201", "error") in _findings(document)
