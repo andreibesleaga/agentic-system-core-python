@@ -43,6 +43,10 @@ def _export_blocks(markdown_text):
 def run(vector):
     given = vector["input"]
     expected = vector["expected"]
+    if "bundle" in given and isinstance(given.get("item"), dict):
+        # graph-0027 and its kind: the real lint and build over a whole Bundle.
+        return {"status": "not-run",
+                "detail": "needs the real lint and build over a whole Bundle; not implemented by this package"}
     items = []
     handled = set()
 

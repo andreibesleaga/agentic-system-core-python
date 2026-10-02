@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 
 import pytest
 
@@ -21,7 +22,7 @@ def codes(result):
 def test_the_shipped_vector_copies_pass_the_file_format_check():
     result, count, empty = vectors.validate(str(VECTORS))
     assert result["status"] == "pass", result["findings"]
-    assert count == 65
+    assert count == 66
     for area in vectors_module_areas():
         assert area not in empty
     assert "lint" in empty
@@ -31,24 +32,31 @@ def test_every_vector_of_every_area_this_package_runs_passes():
     report, code = vectors.run(str(VECTORS))
     assert code == 0
     assert report["tally"]["fail"] == 0
-    assert report["tally"]["pass"] == 62
-    # Three vectors need a whole Bundle build: reported not run, by name.
-    assert report["tally"]["not_run"] == 3
-    assert sorted(report["vectors_not_run"]) == ["build-0015", "build-0017", "disc-0018"]
+    assert report["tally"]["pass"] == 61
+    # Four vectors need a whole Bundle build: reported not run, by name.
+    assert report["tally"]["not_run"] == 4
+    assert sorted(report["vectors_not_run"]) == ["build-0015", "build-0017", "disc-0018", "graph-0027"]
     assert report["areas_run"] == vectors_module_areas()
     assert report["areas_not_run"] == {}
-    assert "62 pass" in report["summary"]
-    assert "3 not run by this package" in report["summary"]
+    assert "61 pass" in report["summary"]
+    assert "4 not run by this package" in report["summary"]
 
 
 def test_a_level_selects_its_area_set():
     report, _ = vectors.run(str(VECTORS), level=0)
-    # Level 0 runs frontmatter, slug, bundle and discovery only (AGSC-10-02).
-    assert report["total"] == 12 + 5 + 12
-    # disc-0018 needs a whole Bundle build and is reported not run.
-    assert report["tally"]["pass"] == 12 + 5 + 11
+    # Level 0 runs frontmatter, slug, bundle and discovery only (AGSC-10-02), less the
+    # discovery cases AGSC-10-15 assigns to a higher Level: four discovery cases remain.
+    assert report["total"] == 12 + 5 + 4
+    assert report["tally"]["pass"] == 12 + 5 + 4
     report, _ = vectors.run(str(VECTORS), level=3)
-    assert report["total"] == 65
+    assert report["total"] == 66
+
+
+@pytest.mark.skipif(not (ENGINE / "spec").is_dir(), reason="the engine checkout is not here")
+def test_the_higher_level_table_is_the_specifications():
+    text = (ENGINE / "spec" / "10-implementation-profiles.md").read_text(encoding="utf-8")
+    rows = re.findall(r"^\s*\| `([a-z]+-\d{4})` \| `[a-z]+` \| (\d) \|", text, re.M)
+    assert dict((case, int(level)) for case, level in rows) == vectors.HIGHER_LEVEL_CASES
 
 
 def test_an_area_this_package_does_not_run_is_named_never_skipped(tmp_path):

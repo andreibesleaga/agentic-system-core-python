@@ -23,6 +23,8 @@ def _needs_build(data):
     given = data["input"]
     if data["area"] == "build":
         return any(k in given for k in ("bundle", "files"))
+    if data["area"] == "graph":
+        return "bundle" in given and isinstance(given.get("item"), dict)
     return data["area"] == "discovery" and "bundle" in given and "items" not in given
 
 
@@ -32,11 +34,11 @@ RUN = [one for one in sorted(VECTORS.rglob("*.json"))
 
 
 def test_a_vector_that_needs_a_whole_build_is_reported_not_run():
-    for identifier in ("build-0015", "build-0017", "disc-0018"):
+    for identifier in ("build-0015", "build-0017", "disc-0018", "graph-0027"):
         data = vector(identifier)
         result = AREA_RUNNERS[data["area"]](data)
         assert result["status"] == "not-run"
-        assert "full Bundle build" in result["detail"]
+        assert "whole Bundle" in result["detail"] or "full Bundle build" in result["detail"]
 
 
 @pytest.mark.parametrize("path", RUN, ids=[one.stem for one in RUN])

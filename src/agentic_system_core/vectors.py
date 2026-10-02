@@ -61,6 +61,18 @@ LEVEL_AREAS = {
     3: AREAS,
 }
 
+#: AGSC-10-15 (amended for 1.0.0): the cases of a Level's areas that exercise a higher
+#: Level's behaviour, each with the Level it belongs to; a claim at a lower Level neither
+#: runs them nor fails for them. The engine and the specification carry the same table.
+HIGHER_LEVEL_CASES = {
+    "bundle-0001": 1, "bundle-0006": 1, "bundle-0007": 1, "disc-0005": 1, "disc-0019": 1,
+    "bundle-0008": 2, "disc-0009": 2, "disc-0012": 2, "disc-0015": 2, "disc-0016": 2,
+    "disc-0017": 2, "disc-0018": 2, "lint-0026": 2,
+    "bundle-0003": 3, "bundle-0004": 3, "bundle-0005": 3,
+    "lint-0001": 3, "lint-0002": 3, "lint-0003": 3, "lint-0028": 3, "lint-0029": 3,
+    "adopt-0007": 3, "adopt-0008": 3, "adopt-0009": 3,
+}
+
 _ID = re.compile(r"^[a-z]+-\d{4}$")
 _RULE = re.compile(r"^AGSC-\d{2}-\d{2,3}[a-z]?$")
 _CODE = re.compile(r"AGSC-E\d{3}")
@@ -324,7 +336,8 @@ def run(directory, level=None, pending_path=None, surfaces=("mcp", "webmcp")):
     pending, reason = load_pending(
         pending_path if pending_path is not None else default_pending_path(directory))
     vectors = [one for one in load_vectors(directory)
-               if areas is None or one.get("area") in areas]
+               if areas is None or (one.get("area") in areas
+                                    and HIGHER_LEVEL_CASES.get(one.get("id"), 0) <= level)]
     tally = {"fail": 0, "not_run": 0, "pass": 0, "pending": 0, "skip": 0, "withdrawn": 0}
     results = []
     not_run_areas = {}
