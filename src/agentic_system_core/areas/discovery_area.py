@@ -5,7 +5,9 @@ vector whose input is a whole Bundle (``bundle``) needs a site build this packag
 does not carry, and is reported as not run, by name.
 """
 
+import base64
 import copy
+import hashlib
 
 from .. import MEDIA_TYPE, PROFILE_URI, REL_BASE, SPEC_VERSION, WELLKNOWN_PATH
 from .. import discovery
@@ -179,6 +181,43 @@ def _reader_case(case, want):
     return out
 
 
+def _digest(text):
+    return "sha-256=:%s:" % base64.b64encode(hashlib.sha256(text.encode("utf-8")).digest()).decode("ascii")
+
+
+def _whole_case(case, want):
+    """One disc-0020 case: the whole document a publisher emits for the input.
+
+    This package is a checker, not a publisher, so it checks the stated document: it
+    is valid at its Level, its anchor is the node's, and every ``digest`` it carries
+    is the SHA-256 of the file text the input gives for that route, with
+    ``agsc-bundle-hash`` the digest of ``graph.nq`` (AGSC-06-08, AGSC-04-15)."""
+    name = case["name"]
+    document = want["document"]
+    errors, _, _ = _check(document, case["level"])
+    out = [(name + ":valid", errors == [], shown(errors))]
+    context = document["linkset"][0]
+    out.append((name + ":anchor", context.get("anchor") == case["base"].rstrip("/") + "/",
+                shown(context.get("anchor"))))
+    wrong = []
+    for relation, targets in context.items():
+        if not isinstance(targets, list):
+            continue
+        for target in targets:
+            route = target["href"][len(case["base"].rstrip("/")):]
+            if "digest" in target and target["digest"] != [_digest(case["files"].get(route, ""))]:
+                wrong.append(route)
+    out.append((name + ":digests", wrong == [], shown(wrong)))
+    bundle_hash = _describedby(document).get("agsc-bundle-hash")
+    if bundle_hash is not None:
+        out.append((name + ":bundle-hash", bundle_hash == [_digest(case["files"]["/graph.nq"])],
+                    shown(bundle_hash)))
+    unknown = sorted(set(want) - {"document", "name"})
+    if unknown:
+        out.append((name + ":unhandled", False, shown(unknown)))
+    return out
+
+
 def _robots_case(case, want):
     groups, findings = discovery.robots_groups(case["tdm_crawlers"], case["tdm_reservation"])
     name = case["name"]
@@ -222,6 +261,8 @@ def run(vector):
                 handler = _linkset_case
             elif "reader_version" in case:
                 handler = _reader_case
+            elif "files" in case:
+                handler = _whole_case
             elif "ledger_head" in case:
                 handler = _ledger_case
             else:

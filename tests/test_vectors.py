@@ -22,7 +22,7 @@ def codes(result):
 def test_the_shipped_vector_copies_pass_the_file_format_check():
     result, count, empty = vectors.validate(str(VECTORS))
     assert result["status"] == "pass", result["findings"]
-    assert count == 66
+    assert count == 68
     for area in vectors_module_areas():
         assert area not in empty
     assert "lint" in empty
@@ -32,14 +32,15 @@ def test_every_vector_of_every_area_this_package_runs_passes():
     report, code = vectors.run(str(VECTORS))
     assert code == 0
     assert report["tally"]["fail"] == 0
-    assert report["tally"]["pass"] == 61
-    # Four vectors need a whole Bundle build: reported not run, by name.
-    assert report["tally"]["not_run"] == 4
-    assert sorted(report["vectors_not_run"]) == ["build-0015", "build-0017", "disc-0018", "graph-0027"]
+    assert report["tally"]["pass"] == 62
+    # Four vectors need a whole Bundle build and one the publisher's JSON-LD writer:
+    # reported not run, by name.
+    assert report["tally"]["not_run"] == 5
+    assert sorted(report["vectors_not_run"]) == ["build-0015", "build-0017", "disc-0018", "graph-0027", "graph-0028"]
     assert report["areas_run"] == vectors_module_areas()
     assert report["areas_not_run"] == {}
-    assert "61 pass" in report["summary"]
-    assert "4 not run by this package" in report["summary"]
+    assert "62 pass" in report["summary"]
+    assert "5 not run by this package" in report["summary"]
 
 
 def test_a_level_selects_its_area_set():
@@ -49,7 +50,7 @@ def test_a_level_selects_its_area_set():
     assert report["total"] == 12 + 5 + 4
     assert report["tally"]["pass"] == 12 + 5 + 4
     report, _ = vectors.run(str(VECTORS), level=3)
-    assert report["total"] == 66
+    assert report["total"] == 68
 
 
 @pytest.mark.skipif(not (ENGINE / "spec").is_dir(), reason="the engine checkout is not here")

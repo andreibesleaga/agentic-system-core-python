@@ -47,6 +47,11 @@ def run(vector):
         # graph-0027 and its kind: the real lint and build over a whole Bundle.
         return {"status": "not-run",
                 "detail": "needs the real lint and build over a whole Bundle; not implemented by this package"}
+    if "graph_jsonld" in expected:
+        # graph-0028: the publisher's JSON-LD files, whole. This package compacts only for
+        # the context round trip of AGSC-06-32 and writes no graph.jsonld of its own.
+        return {"status": "not-run",
+                "detail": "needs the publisher's graph.jsonld writer; not implemented by this package"}
     items = []
     handled = set()
 

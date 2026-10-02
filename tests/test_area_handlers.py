@@ -19,12 +19,13 @@ def vector(identifier):
 
 
 def _needs_build(data):
-    """A vector whose input is a whole Bundle is reported not run, never judged."""
+    """A vector whose input is a whole Bundle, or which states the publisher's JSON-LD
+    files, is reported not run, never judged."""
     given = data["input"]
     if data["area"] == "build":
         return any(k in given for k in ("bundle", "files"))
     if data["area"] == "graph":
-        return "bundle" in given and isinstance(given.get("item"), dict)
+        return ("bundle" in given and isinstance(given.get("item"), dict)) or "graph_jsonld" in data["expected"]
     return data["area"] == "discovery" and "bundle" in given and "items" not in given
 
 
@@ -39,6 +40,13 @@ def test_a_vector_that_needs_a_whole_build_is_reported_not_run():
         result = AREA_RUNNERS[data["area"]](data)
         assert result["status"] == "not-run"
         assert "whole Bundle" in result["detail"] or "full Bundle build" in result["detail"]
+
+
+def test_the_publishers_json_ld_files_are_reported_not_run():
+    data = vector("graph-0028")
+    result = AREA_RUNNERS[data["area"]](data)
+    assert result["status"] == "not-run"
+    assert "graph.jsonld writer" in result["detail"]
 
 
 @pytest.mark.parametrize("path", RUN, ids=[one.stem for one in RUN])
