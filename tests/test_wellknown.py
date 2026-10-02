@@ -280,3 +280,33 @@ def test_the_first_document_is_told_when_it_does_not_name_its_peer():
     assert codes(result) == ["AGSC-E907", "AGSC-E907"]
     assert {one["file"] for one in result["findings"]} == \
         {case("peer-mutual"), case("peer-not-mutual")}
+
+
+def _served_as(final_url):
+    """A fetcher that serves the `good` case (anchored at node.example) as if read from
+    `final_url` after redirects."""
+    def fetcher(href, dev=False):
+        with open(case("good"), "rb") as handle:
+            return final_url, {
+                "content-type": 'application/linkset+json;profile="https://w3id.org/'
+                                'agentic-system-core/profile/agentic-knowledge"',
+            }, handle.read()
+    return fetcher
+
+
+def test_a_document_served_from_another_origin_than_its_anchor_is_e907():
+    # AGSC-06-08 (amended 2026-10-02 for 1.0.0): a copy of node.example's document served
+    # by another origin is not that origin's discovery document.
+    url = "https://copy.example/.well-known/knowledge-linkset"
+    result, _ = wellknown.validate(url, allow_network=True, fetcher=_served_as(url))
+    assert "AGSC-E907" in codes(result)
+
+
+def test_the_origin_judged_is_the_one_finally_read_after_redirects():
+    own = "https://node.example/.well-known/knowledge-linkset"
+    result, _ = wellknown.validate("https://alias.example/.well-known/knowledge-linkset",
+                                   allow_network=True, fetcher=_served_as(own))
+    assert "AGSC-E907" not in codes(result)
+    moved = "https://copy.example/.well-known/knowledge-linkset"
+    result, _ = wellknown.validate(own, allow_network=True, fetcher=_served_as(moved))
+    assert "AGSC-E907" in codes(result)

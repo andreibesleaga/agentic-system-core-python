@@ -99,9 +99,12 @@ def _compact(value):
 class Source(object):
     """One document to check, with the way its targets are resolved."""
 
-    def __init__(self, kind, name, data, headers=None, site_root=None, fetcher=None, dev=False):
+    def __init__(self, kind, name, data, headers=None, site_root=None, fetcher=None, dev=False,
+                 retrieved_from=None):
         self.kind = kind
         self.name = name
+        #: the URL the document was finally read from, after redirects (AGSC-06-08)
+        self.retrieved_from = retrieved_from
         self.data = data
         self.headers = headers
         self.site_root = site_root
@@ -161,7 +164,8 @@ def load(target, allow_network=False, fetcher=None, dev=False):
         if fetcher is None:  # pragma: no cover - the CLI always supplies one
             from .net import fetch as fetcher  # noqa: F811
         final, headers, body = fetcher(target, dev)
-        return Source("url", target, body, headers=headers, fetcher=fetcher, dev=dev)
+        return Source("url", target, body, headers=headers, fetcher=fetcher, dev=dev,
+                      retrieved_from=final)
     path = os.path.abspath(target)
     if not os.path.isfile(path):
         raise TransportError("AGSC-E901", "file not found: %s" % target)
@@ -274,6 +278,17 @@ def check(source, level, findings, dev=False):
             % _compact(raw_anchor),
         )
         return None
+
+    # AGSC-06-08: a document whose anchor is not on the origin it was retrieved from is
+    # not that node's discovery document (RFC 9264 section 9, RFC 8615 section 4.3).
+    if source.kind == "url" and source.retrieved_from is not None:
+        origin = Url(source.retrieved_from).origin
+        if origin != anchor.origin:
+            report(
+                "AGSC-E907",
+                "anchor %s is not on the origin the document was retrieved from (%s); it is not "
+                "that node's discovery document (AGSC-06-08)" % (raw_anchor, origin),
+            )
 
     keys = list(context.keys())
     if keys != sorted(keys, key=utf16_key):
