@@ -15,7 +15,7 @@
 # 3.13); the build runs once, on 3.12. 3.9 runs on ubuntu-24.04, the newest runner
 # image actions/python-versions builds 3.9 for.
 #
-# The one-time PyPI setup and the tag (v<version>, e.g. v1.0.0rc6) are the
+# The one-time PyPI setup and the tag (v<version>, e.g. v1.0.0rc7) are the
 # maintainer's.
 
 name: release

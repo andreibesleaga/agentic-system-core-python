@@ -20,7 +20,7 @@ def run(argv):
 def test_version():
     code, out, _ = run(["--version"])
     assert code == 0
-    assert "1.0.0rc6" in out and "1.0.0-rc.6" in out
+    assert "1.0.0rc7" in out and "1.0.0-rc.7" in out
 
 
 def test_help_and_no_arguments():
@@ -77,7 +77,7 @@ def test_validate_wellknown_peer_and_dev_flags():
 def test_validate_vectors():
     code, out, _ = run(["validate-vectors", str(VECTORS)])
     assert code == 0
-    assert "68 input file(s) read" in out
+    assert "69 input file(s) read" in out
     code, out, _ = run(["validate-vectors", str(VECTORS), "--json"])
     assert code == 0
     assert parse_ijson(out)["verb"] == "validate-vectors"
@@ -96,14 +96,14 @@ def test_validate_vectors_usage_faults():
 def test_validate_vectors_with_a_live_spec_directory(tmp_path):
     spec = tmp_path / "spec"
     spec.mkdir()
-    (spec / "00-overview.md").write_bytes(b"version 1.0.0-rc.6\n**AGSC-00-01** a rule.\n")
+    (spec / "00-overview.md").write_bytes(b"version 1.0.0-rc.7\n**AGSC-00-01** a rule.\n")
     (spec / "04-canonicalization.md").write_bytes(b"**AGSC-04-05** the canonical form.\n")
     (spec / "09-conformance.md").write_bytes(b"| `AGSC-E201` | a shape fault |\n")
     code, out, _ = run(["validate-vectors", str(VECTORS), "--spec", str(spec), "--json"])
     # The shipped vectors name rules this cut-down spec does not define, so the
     # run fails - which is the point: the resolution is real, not decorative.
     assert code == 1
-    assert parse_ijson(out)["spec_version"] == "1.0.0-rc.6"
+    assert parse_ijson(out)["spec_version"] == "1.0.0-rc.7"
 
 
 def test_validate_vectors_root_option(tmp_path):
@@ -114,7 +114,7 @@ def test_validate_vectors_root_option(tmp_path):
 def test_run_vectors():
     code, out, _ = run(["run-vectors", str(VECTORS)])
     assert code == 0
-    assert "62 pass" in out
+    assert "63 pass" in out
     assert "not run by this package: build-0015" in out
     code, out, _ = run(["run-vectors", str(VECTORS), "--json"])
     assert parse_ijson(out)["areas_run"] == [
@@ -208,7 +208,17 @@ def test_an_unknown_verb_without_the_engine_says_what_to_install():
     code = cli.forward(["build"], err, finder=lambda: None)
     assert code == 2
     assert "agentic-system-core" in err.getvalue()
-    assert "Node 22.12" in err.getvalue()
+    assert "Node 22.13 or newer" in err.getvalue()
+
+
+def test_the_node_floor_is_the_one_the_readme_and_the_engine_state():
+    # The engine's package.json says "node": ">=22.13.0" and the README says Node 22.13;
+    # the message the command prints must name the same floor.
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "README.md"), encoding="utf-8") as handle:
+        readme = " ".join(handle.read().split())
+    assert cli.NODE_REQUIREMENT == "Node 22.13 or newer"
+    assert "Node 22.13 or newer" in readme
 
 
 def test_main_forwards_an_unknown_verb(monkeypatch):

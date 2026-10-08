@@ -14,6 +14,11 @@ be present.  When the document is read from a file, the digests are verified
 against the bytes on disk, because a build output can be checked with no
 network at all.
 
+Given a URL, the response headers of the rules on cross-origin reading
+(AGSC-11-03) and caching (AGSC-11-05) are also checked, on the document and on
+every same-origin public artefact the run fetches: errors at Level 2 and above,
+warnings below (AGSC-09-93, amended 2026-10-06 for 1.0.0).
+
 Error codes.  Section 9.4 of the specification names no dedicated code for
 these shape checks, so this checker uses the same code for the same fault as the
 Node tool does, under the precedence paragraph: AGSC-E201 for document shape,
@@ -23,7 +28,8 @@ AGSC-E506 (a warning) for a relation or a target attribute of a newer MINOR,
 which is ignored (AGSC-00-21, AGSC-09-93);
 AGSC-E210 for a surface declaration that disagrees with the node; AGSC-E601 for
 non-canonical bytes at Level 2 and above; AGSC-E901/E902/E904/E905/E907 for
-input and transport faults.
+input and transport faults.  A missing response header or header value is
+AGSC-E202 and one the rules forbid is AGSC-E201.
 
 Standard library only.
 """
@@ -37,7 +43,7 @@ import re
 from . import MEDIA_TYPE, PROFILE_URI, REL_BASE, SPEC_VERSION, WELLKNOWN_SUFFIX
 from .diagnostics import envelope, finding
 from .jcs import canonicalize_raw, compare_utf16, parse_ijson, utf16_key
-from .net import MAX_BYTES, TransportError
+from .net import MAX_BYTES, TARGET_MAX_BYTES, TransportError
 from .urls import Url, decoded_path, is_url_argument, resolve
 
 VERB = "validate-wellknown"
@@ -85,6 +91,17 @@ SURFACE_NEEDS_VERSION = frozenset(["mcp", "webmcp", "a2a-card", "solid", "respon
 #: AGSC-11-16: the access classes.
 ACCESS = frozenset(["none", "consent", "credential"])
 
+#: AGSC-11-03: the public artefacts, as origin-rooted paths (a node occupies a whole
+#: origin at 1.0, AGSC-01-19).
+PUBLIC_ARTEFACT = re.compile(
+    r"^/(?:\.well-known/knowledge-linkset|graph\.(?:jsonld|ttl|nq)|ns/.*|llms(?:-full)?\.txt"
+    r"|chunks(?:-[^/]+)?\.jsonl|ledger\.jsonl|search(?:-[^/]+)?\.json|pages/[^/]+\.(?:md|jsonld)"
+    r"|skills/.*|now\.md|boards/.*|attachments/.*|graph/fragments/.*)$", re.DOTALL)
+#: AGSC-11-05: the three routes served with ``Cache-Control: no-cache``.
+NO_CACHE = ("/.well-known/knowledge-linkset", "/now.md", "/ledger.jsonl")
+#: AGSC-11-03: the response headers a public artefact exposes to another origin.
+EXPOSED = ("Link", "ETag", "Content-Type")
+
 _PRIVATE_SURFACE = re.compile(r"^x-[a-z0-9]+(-[a-z0-9]+)+$")
 _DIGEST = re.compile(r"^sha-256=:[A-Za-z0-9+/]{43}=:$")
 _PARAMETER = re.compile(r';\s*([A-Za-z0-9!#$&^_.+\-]+)\s*=\s*("(?:[^"\\]|\\.)*"|[^;]*)')
@@ -111,6 +128,8 @@ class Source(object):
         self.fetcher = fetcher
         self.dev = dev
         self.reads = 1
+        #: (final URL, response headers) of every target this run fetched
+        self.fetched = []
 
     def resolve_target(self, href, anchor):
         """The bytes of one target, or None when it cannot be checked offline."""
@@ -120,7 +139,9 @@ class Source(object):
             return None
         if self.kind == "url":
             self.reads += 1
-            return self.fetcher(href, self.dev)[2]
+            final, headers, body = self.fetcher(href, self.dev, cap=TARGET_MAX_BYTES)
+            self.fetched.append((final, headers))
+            return body
         if self.site_root is None:
             raise TransportError(
                 "AGSC-E901",
@@ -163,7 +184,7 @@ def load(target, allow_network=False, fetcher=None, dev=False):
             )
         if fetcher is None:  # pragma: no cover - the CLI always supplies one
             from .net import fetch as fetcher  # noqa: F811
-        final, headers, body = fetcher(target, dev)
+        final, headers, body = fetcher(target, dev, cap=MAX_BYTES)
         return Source("url", target, body, headers=headers, fetcher=fetcher, dev=dev,
                       retrieved_from=final)
     path = os.path.abspath(target)
@@ -205,6 +226,75 @@ def _media_type_state(headers):
             if "profile" in names:
                 by_link = True
     return {"checked": True, "essence": essence, "ok": by_parameter or by_link}
+
+
+def _header_values(headers, name):
+    value = headers.get(name)
+    if value is None:
+        return None
+    return ", ".join(value) if isinstance(value, (list, tuple)) else str(value)
+
+
+def _tokens(value):
+    return [one.strip().lower() for one in (value or "").split(",") if one.strip()]
+
+
+def header_shortfalls(headers, cors, no_cache):
+    """One response's shortfalls against AGSC-11-03 (when ``cors``) and AGSC-11-05."""
+    out = []
+    if cors:
+        origin = _header_values(headers, "access-control-allow-origin")
+        if origin is None:
+            out.append(("AGSC-E202", 'no Access-Control-Allow-Origin: a public artefact is served '
+                                     'with "*" (AGSC-11-03)'))
+        elif origin.strip() != "*":
+            out.append(("AGSC-E201", 'Access-Control-Allow-Origin is %s, not "*" (AGSC-11-03)'
+                        % _compact(origin)))
+        exposed = _header_values(headers, "access-control-expose-headers")
+        missing = [name for name in EXPOSED if name.lower() not in _tokens(exposed)]
+        if exposed is None:
+            out.append(("AGSC-E202", "no Access-Control-Expose-Headers: a public artefact exposes "
+                                     "Link, ETag, Content-Type (AGSC-11-03)"))
+        elif missing:
+            out.append(("AGSC-E202", "Access-Control-Expose-Headers %s does not name %s (AGSC-11-03)"
+                        % (_compact(exposed), ", ".join(missing))))
+        if _header_values(headers, "access-control-allow-credentials") is not None:
+            out.append(("AGSC-E201", "Access-Control-Allow-Credentials is sent; no public artefact "
+                                     "carries it (AGSC-11-03)"))
+    if _header_values(headers, "etag") is None:
+        out.append(("AGSC-E202", "no ETag: every public artefact is sent with one (AGSC-11-05)"))
+    cache = _header_values(headers, "cache-control")
+    if no_cache and "no-cache" not in _tokens(cache):
+        out.append(("AGSC-E202", "Cache-Control is %s, not no-cache (AGSC-11-05)"
+                    % _compact(cache or "")))
+    if "immutable" in _tokens(cache):
+        out.append(("AGSC-E201", "Cache-Control carries immutable, which no 1.0 route may "
+                                 "(AGSC-11-05)"))
+    return out
+
+
+def _check_headers(source, anchor, restricted, level, report):
+    """AGSC-09-93: the headers of the document and of every same-origin public artefact read."""
+    if source.kind != "url" or source.headers is None:
+        return
+    severity = "error" if level >= 2 else "warn"
+    seen = set()
+    responses = [(source.retrieved_from or source.name, source.headers, True)]
+    responses += [(final, headers, False) for final, headers in source.fetched]
+    for final, headers, is_document in responses:
+        if headers is None or final in seen:
+            continue
+        url = Url(final)
+        if url.origin != anchor.origin:
+            continue
+        if not is_document and PUBLIC_ARTEFACT.match(url.pathname) is None:
+            continue
+        seen.add(final)
+        lowered = {str(name).lower(): value for name, value in headers.items()}
+        for code, message in header_shortfalls(
+                lowered, cors=is_document or not restricted,
+                no_cache=is_document or url.pathname in NO_CACHE):
+            report(code, "%s: %s" % (final, message), severity=severity)
 
 
 def check(source, level, findings, dev=False):
@@ -461,6 +551,7 @@ def check(source, level, findings, dev=False):
             if extension == "surface":
                 _check_surface(target, href, parsed, raw_anchor, source, report)
 
+    _check_headers(source, anchor, restricted, level, report)
     return {"anchor": raw_anchor, "peers": peers}
 
 

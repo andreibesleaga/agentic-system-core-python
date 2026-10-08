@@ -28,7 +28,7 @@ from .net import fetch
 
 #: The npm package that carries the engine and every other verb.
 NPM_PACKAGE = "agentic-system-core"
-NODE_REQUIREMENT = "Node 22.12 or newer"
+NODE_REQUIREMENT = "Node 22.13 or newer"
 
 NATIVE_VERBS = ("validate-wellknown", "validate-vectors", "run-vectors")
 

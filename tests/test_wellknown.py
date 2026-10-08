@@ -13,6 +13,17 @@ def codes(result):
     return sorted(one["code"] for one in result["findings"])
 
 
+#: The cross-origin and caching headers a conforming node sends on its discovery
+#: document (AGSC-11-03, AGSC-11-05), merged into the served headers of the tests below
+#: that are about something else.
+WELL_SERVED = {
+    "access-control-allow-origin": "*",
+    "access-control-expose-headers": "Link, ETag, Content-Type",
+    "cache-control": "no-cache",
+    "etag": '"e"',
+}
+
+
 def run(name, **options):
     result, reads = wellknown.validate(case(name), **options)
     return result
@@ -163,10 +174,10 @@ def test_a_url_is_read_through_the_injected_fetcher():
         "https://node.example/ledger.jsonl": (WELLKNOWN / "good" / "ledger.jsonl").read_bytes(),
     }
 
-    def fetcher(href, dev=False):
-        headers = {"content-type":
-                   'application/linkset+json;profile="https://w3id.org/agentic-system-core/'
-                   'profile/agentic-knowledge"'}
+    def fetcher(href, dev=False, cap=None):
+        headers = dict(WELL_SERVED, **{"content-type":
+                       'application/linkset+json;profile="https://w3id.org/agentic-system-core/'
+                       'profile/agentic-knowledge"'})
         if href not in served:
             raise TransportError("AGSC-E907", "HTTP 404 for %s" % href)
         return href, headers, served[href]
@@ -179,9 +190,9 @@ def test_a_url_is_read_through_the_injected_fetcher():
 
 
 def test_a_served_document_with_the_wrong_media_type_is_e201():
-    def fetcher(href, dev=False):
+    def fetcher(href, dev=False, cap=None):
         with open(case("good"), "rb") as handle:
-            return href, {"content-type": "application/json"}, handle.read()
+            return href, dict(WELL_SERVED, **{"content-type": "application/json"}), handle.read()
 
     result, _ = wellknown.validate("https://node.example/.well-known/knowledge-linkset",
                                    allow_network=True, fetcher=fetcher)
@@ -189,13 +200,13 @@ def test_a_served_document_with_the_wrong_media_type_is_e201():
 
 
 def test_the_profile_may_be_carried_by_a_link_header():
-    def fetcher(href, dev=False):
+    def fetcher(href, dev=False, cap=None):
         with open(case("good"), "rb") as handle:
-            return href, {
+            return href, dict(WELL_SERVED, **{
                 "content-type": "application/linkset+json",
                 "link": '<https://w3id.org/agentic-system-core/profile/agentic-knowledge>; '
                         'rel="profile"',
-            }, handle.read()
+            }), handle.read()
 
     result, _ = wellknown.validate("https://node.example/.well-known/knowledge-linkset",
                                    allow_network=True, fetcher=fetcher)
@@ -241,13 +252,13 @@ def test_a_directory_target_with_a_digest_resolves_to_its_index(tmp_path):
 
 
 def test_a_profile_link_header_on_the_wrong_media_type_is_still_reported():
-    def fetcher(href, dev=False):
+    def fetcher(href, dev=False, cap=None):
         with open(case("good"), "rb") as handle:
-            return href, {
+            return href, dict(WELL_SERVED, **{
                 "content-type": "application/json",
                 "link": '<https://w3id.org/agentic-system-core/profile/agentic-knowledge>; '
                         'rel="profile"',
-            }, handle.read()
+            }), handle.read()
 
     result, _ = wellknown.validate("https://node.example/.well-known/knowledge-linkset",
                                    allow_network=True, fetcher=fetcher)
@@ -285,12 +296,12 @@ def test_the_first_document_is_told_when_it_does_not_name_its_peer():
 def _served_as(final_url):
     """A fetcher that serves the `good` case (anchored at node.example) as if read from
     `final_url` after redirects."""
-    def fetcher(href, dev=False):
+    def fetcher(href, dev=False, cap=None):
         with open(case("good"), "rb") as handle:
-            return final_url, {
+            return final_url, dict(WELL_SERVED, **{
                 "content-type": 'application/linkset+json;profile="https://w3id.org/'
                                 'agentic-system-core/profile/agentic-knowledge"',
-            }, handle.read()
+            }), handle.read()
     return fetcher
 
 
@@ -310,3 +321,178 @@ def test_the_origin_judged_is_the_one_finally_read_after_redirects():
     moved = "https://copy.example/.well-known/knowledge-linkset"
     result, _ = wellknown.validate(own, allow_network=True, fetcher=_served_as(moved))
     assert "AGSC-E907" in codes(result)
+
+
+# ------------------------------------------------- AGSC-09-93, amended 2026-10-06 for 1.0.0
+# Given a URL, the checker reads the response headers of the discovery document and of
+# every same-origin public artefact it fetches, and checks the rules on cross-origin
+# reading (AGSC-11-03) and caching (AGSC-11-05): a missing header or value is AGSC-E202,
+# a forbidden one AGSC-E201; errors at Level 2 and above, warnings below.  Until then
+# only the media type was read, so a node that served none of these headers passed
+# (verification finding T1, the checker half).  The engine's tools/validate-wellknown
+# does the same.
+
+GOOD_URL = "https://node.example/.well-known/knowledge-linkset"
+NO_CACHE_PATHS = ("/.well-known/knowledge-linkset", "/now.md", "/ledger.jsonl")
+
+
+def _good_served():
+    with open(case("good"), "rb") as handle:
+        body = handle.read()
+    return {
+        GOOD_URL: body,
+        "https://node.example/llms.txt": (WELLKNOWN / "good" / "llms.txt").read_bytes(),
+        "https://node.example/graph.jsonld": (WELLKNOWN / "good" / "graph.jsonld").read_bytes(),
+        "https://node.example/ledger.jsonl": (WELLKNOWN / "good" / "ledger.jsonl").read_bytes(),
+    }
+
+
+def _full_headers(href):
+    """The header set a conforming public node sends for one of its artefacts."""
+    headers = {
+        "access-control-allow-origin": "*",
+        "access-control-expose-headers": "Link, ETag, Content-Type",
+        "etag": '"%s"' % href.rsplit("/", 1)[-1],
+    }
+    if href == GOOD_URL:
+        headers["content-type"] = ('application/linkset+json; profile="https://w3id.org/'
+                                   'agentic-system-core/profile/agentic-knowledge"')
+    if href.endswith(NO_CACHE_PATHS):
+        headers["cache-control"] = "no-cache"
+    return headers
+
+
+def _serving(change=lambda href, headers: headers, served=None):
+    served = served if served is not None else _good_served()
+    caps = []
+
+    def fetcher(href, dev=False, cap=None):
+        caps.append((href, cap))
+        if href not in served:
+            raise TransportError("AGSC-E907", "HTTP 404 for %s" % href)
+        return href, change(href, _full_headers(href)), served[href]
+    fetcher.caps = caps
+    return fetcher
+
+
+def _about(result, rule):
+    return [one for one in result["findings"] if rule in one["message"]]
+
+
+def test_a_node_served_with_the_full_header_set_passes_at_level_2():
+    result, _ = wellknown.validate(GOOD_URL, level=2, allow_network=True, fetcher=_serving())
+    assert result["status"] == "pass", result["findings"]
+    assert result["findings"] == []
+
+
+def test_targets_are_fetched_with_the_federation_cap_and_the_document_with_one_mebibyte():
+    # C17 (b), the Python half: a target is held to federation.max_bytes' default.
+    from agentic_system_core import net
+    fetcher = _serving()
+    wellknown.validate(GOOD_URL, level=2, allow_network=True, fetcher=fetcher)
+    caps = dict(fetcher.caps)
+    assert caps[GOOD_URL] == net.MAX_BYTES
+    assert caps["https://node.example/graph.jsonld"] == net.TARGET_MAX_BYTES
+
+
+def test_no_expose_headers_is_e202_on_the_document_and_on_every_target_read():
+    def change(href, headers):
+        del headers["access-control-expose-headers"]
+        return headers
+    result, _ = wellknown.validate(GOOD_URL, level=2, allow_network=True, fetcher=_serving(change))
+    hits = _about(result, "AGSC-11-03")
+    assert len(hits) > 1, result["findings"]
+    assert all(one["code"] == "AGSC-E202" and one["severity"] == "error" for one in hits)
+    assert any("/.well-known/knowledge-linkset" in one["message"] for one in hits)
+    assert any("/graph.jsonld" in one["message"] for one in hits)
+
+
+def test_below_level_2_a_header_shortfall_is_a_warning():
+    def change(href, headers):
+        del headers["access-control-expose-headers"]
+        return headers
+    result, _ = wellknown.validate(GOOD_URL, level=0, allow_network=True, fetcher=_serving(change))
+    assert result["status"] == "pass", result["findings"]
+    hits = _about(result, "AGSC-11-03")
+    assert hits and all(one["severity"] == "warn" and one["code"] == "AGSC-E202" for one in hits)
+
+
+def test_a_narrowed_origin_a_short_exposed_list_and_credentials_are_each_reported():
+    def change(href, headers):
+        if href.endswith("/graph.jsonld"):
+            headers["access-control-expose-headers"] = "Link, Content-Type"
+        if href.endswith("/llms.txt"):
+            headers["access-control-allow-origin"] = "https://example.org"
+        if href == GOOD_URL:
+            headers["access-control-allow-credentials"] = "true"
+        return headers
+    result, _ = wellknown.validate(GOOD_URL, level=2, allow_network=True, fetcher=_serving(change))
+    hits = _about(result, "AGSC-11-03")
+
+    def one(*words):
+        found = [h for h in hits if all(w in h["message"] for w in words)]
+        assert found, (words, hits)
+        return found[0]["code"]
+    assert one("graph.jsonld", "ETag") == "AGSC-E202"
+    assert one("llms.txt", "Access-Control-Allow-Origin") == "AGSC-E201"
+    assert one("knowledge-linkset", "Access-Control-Allow-Credentials") == "AGSC-E201"
+
+
+def test_no_etag_no_no_cache_and_immutable_are_reported():
+    def change(href, headers):
+        if href.endswith("/graph.jsonld"):
+            del headers["etag"]
+        if href == GOOD_URL:
+            del headers["cache-control"]
+        if href.endswith("/llms.txt"):
+            headers["cache-control"] = "public, max-age=31536000, immutable"
+        return headers
+    result, _ = wellknown.validate(GOOD_URL, level=2, allow_network=True, fetcher=_serving(change))
+    hits = _about(result, "AGSC-11-05")
+    codes_by = {("graph.jsonld" in h["message"], "knowledge-linkset" in h["message"],
+                 "llms.txt" in h["message"]): h["code"] for h in hits}
+    assert codes_by[(True, False, False)] == "AGSC-E202", hits
+    assert codes_by[(False, True, False)] == "AGSC-E202", hits
+    assert codes_by[(False, False, True)] == "AGSC-E201", hits
+
+
+def test_a_restricted_node_is_asked_the_cross_origin_pair_on_its_document_alone():
+    # AGSC-11-20: a restricted node applies the wildcard to its discovery document only.
+    import base64
+    import hashlib
+
+    def digest(data):
+        return "sha-256=:%s:" % base64.b64encode(hashlib.sha256(data).digest()).decode()
+    graph, llms = b'{"@graph":[]}\n', b"# A node\n"
+    context = {
+        "alternate": [{"digest": [digest(llms)], "href": "https://node.example/llms.txt",
+                       "type": "text/plain"}],
+        "anchor": "https://node.example/",
+        "describedby": [{"agsc-generated-at": ["2026-01-01T00:00:00Z"],
+                         "agsc-spec-version": ["1.0.0-rc.7"], "agsc-visibility": ["restricted"],
+                         "digest": [digest(graph)], "href": "https://node.example/graph.jsonld",
+                         "type": "application/ld+json"}],
+        "https://w3id.org/agentic-system-core/rel#access": [
+            {"href": "https://node.example/access/", "type": "text/html"}],
+    }
+    served = {GOOD_URL: json.dumps({"linkset": [context]}, separators=(",", ":"),
+                                   sort_keys=True).encode() + b"\n",
+              "https://node.example/graph.jsonld": graph, "https://node.example/llms.txt": llms}
+
+    def gated(href, headers):
+        if href != GOOD_URL:
+            del headers["access-control-allow-origin"]
+            del headers["access-control-expose-headers"]
+        return headers
+    result, _ = wellknown.validate(GOOD_URL, level=2, allow_network=True,
+                                   fetcher=_serving(gated, served))
+    assert result["findings"] == [], result["findings"]
+
+    def bare(href, headers):
+        del headers["access-control-allow-origin"]
+        del headers["access-control-expose-headers"]
+        return headers
+    result, _ = wellknown.validate(GOOD_URL, level=2, allow_network=True,
+                                   fetcher=_serving(bare, served))
+    hits = _about(result, "AGSC-11-03")
+    assert len(hits) == 2 and all("knowledge-linkset" in one["message"] for one in hits), hits

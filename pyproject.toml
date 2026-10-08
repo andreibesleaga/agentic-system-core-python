@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentic-system-core"
-version = "1.0.0rc6"
+version = "1.0.0rc7"
 description = "Two standalone checkers and a reading API for AgenticSystemCore knowledge nodes, in pure Python, with one agsc command that hands every other verb to the Node engine."
 readme = "README.md"
 requires-python = ">=3.9"

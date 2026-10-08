@@ -19,9 +19,9 @@ here is either a rule of the specification or something Python already ships.
 a folder of Markdown files into a knowledge node that people and agents can find,
 verify and cite. Other systems have some of these properties; to the author's knowledge none has
 them together: a knowledge base a machine can find through registered web mechanisms,
-a digest on everything it points at, a typed graph with a published vocabulary, bytes
+an integrity digest on every artefact link of its discovery document, a typed graph with a published vocabulary, bytes
 pinned by conformance vectors, a person on every merge — directly, or by a standing
-rule that person recorded — and a runnable harness out of the same files, with no
+rule that person recorded — and a starting harness of seven kinds of file out of the same files, with no
 server. This package is the Python reader and checker of such nodes; maintainers read
 [docs/MAINTAINING.md](docs/MAINTAINING.md).
 
@@ -32,8 +32,8 @@ pip install --pre agentic-system-core
 ```
 
 Until `1.0.0` is released, every version of this package is a release candidate
-(`1.0.0rc6` today), and pip installs a release candidate only when asked: use
-`--pre`, or name the version, `pip install "agentic-system-core==1.0.0rc6"`. The
+(`1.0.0rc7` today), and pip installs a release candidate only when asked: use
+`--pre`, or name the version, `pip install "agentic-system-core==1.0.0rc7"`. The
 two `0.0.x` versions on PyPI only reserved the name, contain no code and are
 yanked, so a plain `pip install agentic-system-core` finds nothing to install.
 
@@ -93,7 +93,26 @@ package opens a connection unless that flag is on the command line. With it, the
 same protections apply: https only (plain http to loopback under `--dev`), every
 resolved address classified and refused if it is private, link-local, loopback
 or reserved, the connection pinned to the address that was classified, at most
-three redirects, ten seconds, one mebibyte.
+three redirects, one ten-second deadline for each response from the request to
+the last byte, and a cap of one mebibyte on the discovery document and of
+32 MiB on any other file read; a fetch stopped at the deadline or a cap is
+`AGSC-E907` (AGSC-11-10). Given a URL, the checker also reads the response
+headers of the document and of every same-origin public file it fetches and
+checks the rules on cross-origin reading and caching (AGSC-11-03, AGSC-11-05):
+a missing header is `AGSC-E202`, a forbidden one `AGSC-E201`, errors at Level 2
+and above and warnings below (AGSC-09-93).
+
+From Python, `agentic_system_core.wellknown.validate(target, level=2,
+allow_network=True, fetcher=my_fetch)` reads a URL through a fetcher you supply
+instead of the built-in one. It is called as `my_fetch(url, dev, cap=n)`, where
+`cap` is the byte cap of that read — `1048576` for the discovery document,
+`33554432` for any other file — and it returns `(final_url, headers, body)`:
+the URL after redirects, the response headers as a dict with lower-case names,
+and the body as bytes. A fetcher that refuses a read raises
+`agentic_system_core.net.TransportError(code, message)`, for example
+`AGSC-E907` when a response passes `cap`; the protections listed above are those
+of the built-in fetcher, `agentic_system_core.net.fetch`, and a fetcher of your
+own is responsible for its own.
 
 ### `agsc validate-vectors <dir>` and `agsc run-vectors <dir>`
 
@@ -120,7 +139,7 @@ rule text of the specification alone, in the standard library:
 | `jcs` | RFC 8785 canonical JSON with NFC before sorting |
 | `links` | the fourteen Link keys and their inverses, the cycle and cluster-tree checks, heading anchors, and inline-link resolution over a small CommonMark 0.31.2 scanner (headings and inline links only, outside code; its subset is written down in `agentic_system_core/markdown.py`) |
 | `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, and the JSON-LD context of AGSC-06-32 with the compaction it round-trips |
-| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt`, the content version and the staleness comparison; the two `build` vectors that need a whole Bundle build are reported as not run, by name |
+| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt`, the content version and the staleness comparison; five vectors of these seven areas need a whole build or the publisher's writers (`build-0015`, `build-0017`, `disc-0018`, `graph-0027`, `graph-0028`) and are reported as not run, by name |
 | `discovery` | `/llms.txt` and `/llms-full.txt` byte for byte, reachability, the sitemap and robots facts, the link-set writer, and the discovery-document checks including the restricted-node rule of AGSC-11-20 |
 
 The other areas need a Bundle build, the engine's composition or governance
@@ -172,8 +191,8 @@ arguments and never through a shell.
 
 ## Version
 
-The specification version is `1.0.0-rc.6`, a SemVer pre-release. Python packages
-use PEP 440, which spells the same pre-release `1.0.0rc6`, and that is the
+The specification version is `1.0.0-rc.7`, a SemVer pre-release. Python packages
+use PEP 440, which spells the same pre-release `1.0.0rc7`, and that is the
 version on PyPI. `agsc --version` prints both.
 
 ## The vector copies in this repository

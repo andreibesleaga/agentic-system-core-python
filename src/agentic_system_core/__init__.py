@@ -12,14 +12,14 @@ package ``agentic-system-core``; see the README.
 Every rule identifier below is a rule of the AgenticSystemCore specification.
 """
 
-# PEP 440 spelling of the SemVer pre-release 1.0.0-rc.6 (see README, "Version").
-__version__ = "1.0.0rc6"
+# PEP 440 spelling of the SemVer pre-release 1.0.0-rc.7 (see README, "Version").
+__version__ = "1.0.0rc7"
 
 #: The SemVer spelling the specification and the Node package use.
-SEMVER_VERSION = "1.0.0-rc.6"
+SEMVER_VERSION = "1.0.0-rc.7"
 
 #: The specification version this package implements (spec/00-overview.md).
-SPEC_VERSION = "1.0.0-rc.6"
+SPEC_VERSION = "1.0.0-rc.7"
 
 #: The well-known URI suffix of AGSC-06-07: /.well-known/knowledge-linkset.
 WELLKNOWN_SUFFIX = "knowledge-linkset"

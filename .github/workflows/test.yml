@@ -16,8 +16,7 @@
 #              name another ref in a manual run.
 #   Runner     ubuntu-24.04, the newest image actions/python-versions builds 3.9 for
 #              (the same choice as release.yml).
-#   Secrets    ENGINE_TOKEN only, and only while the engine repository is private
-#              (see the engine checkout); once it is public none is needed.
+#   Secrets    none. The engine repository is public, so the default token reads it.
 #              Permissions: read the repositories, nothing else.
 #
 # Every action is pinned to a commit SHA with the version beside it — the checkout
@@ -69,12 +68,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: andreibesleaga/agentic-system-core
-          # While the engine repository is private, another repository's default
-          # token cannot read it, and the maintainer
-          # stores a fine-grained token with read access to the engine's contents
-          # as the repository secret ENGINE_TOKEN. Once the engine is public the
-          # default token suffices and the secret may be deleted.
-          token: ${{ secrets.ENGINE_TOKEN || github.token }}
           ref: ${{ inputs.engine_ref || env.ENGINE_REF }}
           path: agentic-system-core
           persist-credentials: false

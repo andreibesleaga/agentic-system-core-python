@@ -47,7 +47,7 @@ and the fix is to copy the files again, never to edit them.
 
 ## Releases
 
-A release is a tag `v<version>` (PEP 440 spelling, for example `v1.0.0rc6`) pushed by
+A release is a tag `v<version>` (PEP 440 spelling, for example `v1.0.0rc7`) pushed by
 the maintainer. `.github/workflows/release.yml` runs the tests on the oldest and newest
 supported Python, builds once, and publishes through PyPI trusted publishing: no token
 is stored in the repository, and every action is pinned to a commit. The version in

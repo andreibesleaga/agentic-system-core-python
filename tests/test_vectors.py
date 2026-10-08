@@ -22,7 +22,7 @@ def codes(result):
 def test_the_shipped_vector_copies_pass_the_file_format_check():
     result, count, empty = vectors.validate(str(VECTORS))
     assert result["status"] == "pass", result["findings"]
-    assert count == 68
+    assert count == 69
     for area in vectors_module_areas():
         assert area not in empty
     assert "lint" in empty
@@ -32,14 +32,14 @@ def test_every_vector_of_every_area_this_package_runs_passes():
     report, code = vectors.run(str(VECTORS))
     assert code == 0
     assert report["tally"]["fail"] == 0
-    assert report["tally"]["pass"] == 62
+    assert report["tally"]["pass"] == 63
     # Four vectors need a whole Bundle build and one the publisher's JSON-LD writer:
     # reported not run, by name.
     assert report["tally"]["not_run"] == 5
     assert sorted(report["vectors_not_run"]) == ["build-0015", "build-0017", "disc-0018", "graph-0027", "graph-0028"]
     assert report["areas_run"] == vectors_module_areas()
     assert report["areas_not_run"] == {}
-    assert "62 pass" in report["summary"]
+    assert "63 pass" in report["summary"]
     assert "5 not run by this package" in report["summary"]
 
 
@@ -50,7 +50,7 @@ def test_a_level_selects_its_area_set():
     assert report["total"] == 12 + 5 + 4
     assert report["tally"]["pass"] == 12 + 5 + 4
     report, _ = vectors.run(str(VECTORS), level=3)
-    assert report["total"] == 68
+    assert report["total"] == 69
 
 
 @pytest.mark.skipif(not (ENGINE / "spec").is_dir(), reason="the engine checkout is not here")
@@ -184,7 +184,7 @@ def _good(**overrides):
     vector = {
         "area": "jcs", "description": "A fixture.", "expected": {"output": "{}"},
         "id": "jcs-9100", "input": {"value": {}}, "level": "required",
-        "options": {"spec_version": "1.0.0-rc.6"}, "rule": "AGSC-04-05",
+        "options": {"spec_version": "1.0.0-rc.7"}, "rule": "AGSC-04-05",
     }
     vector.update(overrides)
     return vector
@@ -299,7 +299,7 @@ def test_a_file_that_is_not_json_is_e201(tmp_path):
 
 def test_the_bundled_spec_index_is_the_one_the_specification_declares():
     index = vectors.bundled_spec_index()
-    assert index["spec_version"] == "1.0.0-rc.6"
+    assert index["spec_version"] == "1.0.0-rc.7"
     assert "AGSC-04-05" in index["rule_ids"]
     assert "AGSC-E201" in index["error_codes"]
     assert len(index["error_codes"]) == 91  # AGSC-E416 registered 2026-09-24
@@ -338,7 +338,7 @@ def test_a_vector_directory_that_is_not_tests_vectors_still_names_files(tmp_path
 def test_a_specification_that_declares_no_rule_is_called_vacuous(tmp_path):
     spec = tmp_path / "spec"
     spec.mkdir()
-    (spec / "00-overview.md").write_bytes(b"1.0.0-rc.6\n")
+    (spec / "00-overview.md").write_bytes(b"1.0.0-rc.7\n")
     (spec / "09-conformance.md").write_bytes(b"| `AGSC-E201` | a shape fault |\n")
     area = tmp_path / "vectors" / "jcs"
     _write(area, "a.json", _good())

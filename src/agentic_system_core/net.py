@@ -9,7 +9,13 @@ Node tool applies (AGSC-11-07/08/09) apply here:
 * every address the host resolves to is classified before a socket is opened,
   and the connection is made to that classified address, so the name cannot
   resolve to one address for the check and another for the request;
-* at most three redirects, a ten-second timeout and a one-megabyte cap.
+* at most three redirects, and one ten-second deadline per response, from the
+  request to the last byte (AGSC-11-10(e, f));
+* a cap of one mebibyte on a discovery document and of ``federation.max_bytes``'
+  default on any other artefact; a fetch aborted at a cap or at the deadline is
+  AGSC-E907.  Until 2026-10-06 (verification finding C17, the Python half) the
+  timeout was an idle one a slow server could keep resetting, a response over the
+  cap was AGSC-E904 and every target was held to one mebibyte.
 
 The address classification is a pure function and is tested directly; the few
 lines that open a socket are the only ones this package cannot exercise without
@@ -20,11 +26,16 @@ import http.client
 import ipaddress
 import socket
 import ssl
+import time
 
 from .urls import Url, resolve
 
-#: The fetch cap of the Node tool: one mebibyte.
+#: The cap on a discovery document: one mebibyte (AGSC-01-16, AGSC-11-10(e)).
 MAX_BYTES = 1048576
+#: The cap on any other artefact: ``federation.max_bytes``' default (AGSC-11-01, AGSC-11-10(f)).
+TARGET_MAX_BYTES = 33554432
+#: How much one read asks the socket for.
+_PIECE = 65536
 #: The federation defaults of AGSC-11-06.
 REDIRECT_LIMIT = 3
 TIMEOUT_SECONDS = 10
@@ -120,8 +131,42 @@ class _PinnedHTTPConnection(http.client.HTTPConnection):
         self.sock = socket.create_connection((self._pinned, self.port), self.timeout)
 
 
-def fetch_once(href, dev=False):
+def _socket_of(response):
+    """The socket a response reads from, or None once it is closed.
+
+    ``http.client`` may close the connection object as soon as the headers are read
+    (a response that ends the connection), while the response keeps reading through
+    its own file object; so the timeout is set on that file object's socket.
+    """
+    return getattr(getattr(getattr(response, "fp", None), "raw", None), "_sock", None)
+
+
+def _read_within(response, deadline, cap):
+    """The body, a piece at a time, each wait bounded by the time left before ``deadline``."""
+    read = getattr(response, "read1", None) or response.read
+    pieces = []
+    size = 0
+    while True:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise TransportError("AGSC-E907", "timeout: no complete response within %d s "
+                                              "(AGSC-11-10(e, f))" % TIMEOUT_SECONDS)
+        raw = _socket_of(response)
+        if raw is not None:
+            raw.settimeout(left)
+        piece = read(_PIECE)
+        if not piece:
+            return b"".join(pieces)
+        size += len(piece)
+        if size > cap:
+            raise TransportError("AGSC-E907", "response exceeds %d bytes, the cap of "
+                                              "AGSC-11-10(f)" % cap)
+        pieces.append(piece)
+
+
+def fetch_once(href, dev=False, cap=MAX_BYTES):
     """One request, with no redirect following.  Returns status, headers and bytes."""
+    deadline = time.monotonic() + TIMEOUT_SECONDS
     url = Url(href)
     if url.scheme not in ("https", "http"):
         raise TransportError("AGSC-E905", "scheme not allowed: %s:" % url.scheme)
@@ -145,25 +190,26 @@ def fetch_once(href, dev=False):
             "GET", target, headers={"Accept": "application/linkset+json, application/json;q=0.5"}
         )
         response = connection.getresponse()
-        body = response.read(MAX_BYTES + 1)
-        if len(body) > MAX_BYTES:
-            raise TransportError("AGSC-E904", "response exceeds 1 MiB")
+        body = _read_within(response, deadline, cap)
         headers = {name.lower(): value for name, value in response.getheaders()}
         return response.status, headers, body
     except TransportError:
         raise
+    except socket.timeout:
+        raise TransportError("AGSC-E907", "timeout: no complete response within %d s "
+                                          "(AGSC-11-10(e, f))" % TIMEOUT_SECONDS)
     except (OSError, http.client.HTTPException) as error:
         raise TransportError("AGSC-E907", str(error))
     finally:
         connection.close()
 
 
-def fetch(href, dev=False):
+def fetch(href, dev=False, cap=MAX_BYTES):
     """Follow up to three redirects and return the final URL, headers and bytes."""
     current = href
     hop = 0
     while True:
-        status, headers, body = fetch_once(current, dev)
+        status, headers, body = fetch_once(current, dev, cap)
         if status in (301, 302, 303, 307, 308) and headers.get("location"):
             if hop >= REDIRECT_LIMIT:
                 raise TransportError("AGSC-E905", "more than %d redirects" % REDIRECT_LIMIT)
