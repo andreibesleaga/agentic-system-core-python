@@ -200,7 +200,12 @@ def load(target, allow_network=False, fetcher=None, dev=False):
 
 
 def _media_type_state(headers):
-    """Whether the served media type and profile satisfy AGSC-06-07."""
+    """Whether the served media type and profile satisfy AGSC-06-07.
+
+    The media type is ``application/linkset+json`` in every case, and the profile URI
+    rides on its ``profile`` parameter or on a ``Link: ...; rel="profile"`` header: the
+    header replaces only the parameter, never the media type (AGSC-09-93).
+    """
     if headers is None:
         return {"checked": False}
     content_type = str(headers.get("content-type", ""))
@@ -225,7 +230,23 @@ def _media_type_state(headers):
             names = (relation.group(1) or relation.group(2)).split()
             if "profile" in names:
                 by_link = True
-    return {"checked": True, "essence": essence, "ok": by_parameter or by_link}
+    return {"checked": True, "essence": essence, "profile": by_parameter or by_link,
+            "ok": essence == MEDIA_TYPE and (by_parameter or by_link)}
+
+
+def _media_type_shortfall(media):
+    """The one message for a media type that fails AGSC-06-07, or None when it holds."""
+    if not media["checked"] or media["ok"]:
+        return None
+    if media["essence"] != MEDIA_TYPE and media["profile"]:
+        return ('media type "%s" is not %s; the profile Link header replaces only the profile '
+                'parameter, never the media type (AGSC-06-07)' % (media["essence"], MEDIA_TYPE))
+    if media["essence"] != MEDIA_TYPE:
+        return ('media type "%s" is not %s and no profile is carried: need %s with '
+                'profile="%s", or %s with a Link header rel="profile" (AGSC-06-07)'
+                % (media["essence"], MEDIA_TYPE, MEDIA_TYPE, PROFILE_URI, MEDIA_TYPE))
+    return ('media type %s carries no profile: need profile="%s", or a Link header with '
+            'rel="profile" (AGSC-06-07)' % (MEDIA_TYPE, PROFILE_URI))
 
 
 def _header_values(headers, name):
@@ -303,15 +324,9 @@ def check(source, level, findings, dev=False):
     def report(code, message, severity="error"):
         findings.append(finding(code, source.name, message, severity=severity))
 
-    media = _media_type_state(source.headers)
-    if media["checked"] and not media["ok"]:
-        report(
-            "AGSC-E201",
-            'media type is "%s" and no profile is carried: need %s with profile="%s", or a Link '
-            'header with rel="profile" (AGSC-06-07)' % (media["essence"], MEDIA_TYPE, PROFILE_URI),
-        )
-    if media["checked"] and media["ok"] and media["essence"] != MEDIA_TYPE:
-        report("AGSC-E201", 'media type "%s" is not %s (AGSC-06-07)' % (media["essence"], MEDIA_TYPE))
+    shortfall = _media_type_shortfall(_media_type_state(source.headers))
+    if shortfall is not None:
+        report("AGSC-E201", shortfall)
 
     try:
         text = source.data.decode("utf-8")

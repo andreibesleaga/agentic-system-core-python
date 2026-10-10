@@ -3,7 +3,7 @@ query fragments, the served header set, ``security.txt`` and the content version
 
 Derived from the rule text:
 
-* AGSC-06-16 / 06-23 — ``search.json`` and its normative tokenizer.
+* AGSC-06-16 / 06-23 / 06-21 — ``search.json``, its normative tokenizer and its shards.
 * AGSC-06-33 — ``/graph/fragments/index.json``.
 * AGSC-06-17 — the header set and the redirect (the facts, never a file grammar).
 * AGSC-06-36 — ``/.well-known/security.txt``.
@@ -99,6 +99,28 @@ def search_json(items):
     return canonicalize(search_index(items)) + "\n"
 
 
+#: AGSC-06-21: above this many items the index is sharded.
+ITEMS_PER_SHARD = 500
+
+
+def search_files(items, per_shard=ITEMS_PER_SHARD):
+    """[(path, value)] of the search index (AGSC-06-21).
+
+    At or below the bound ``/search.json`` is the whole index.  Above it the items,
+    in slug order, are cut into shards ``/search-<nn>.json`` (zero-padded from 01) of
+    at most ``per_shard`` items, each a complete AGSC-06-16 index over its own slice
+    whose postings count from zero in its own ``docs[]``, and ``/search.json`` is the
+    manifest ``{docs_total, shards}``.
+    """
+    ordered = sorted(items, key=lambda one: one["slug"])
+    if len(ordered) <= per_shard:
+        return [("/search.json", search_index(ordered))]
+    shards = [("/search-%02d.json" % (number + 1), search_index(ordered[start:start + per_shard]))
+              for number, start in enumerate(range(0, len(ordered), per_shard))]
+    manifest = {"docs_total": len(ordered), "shards": [path for path, _ in shards]}
+    return [("/search.json", manifest)] + shards
+
+
 # --- static query fragments (AGSC-06-33) --------------------------------------
 
 def _terms_of(line):
@@ -135,7 +157,9 @@ def fragments(nquads_text, generated_at):
 
 # --- the header set and the redirect (AGSC-06-17) -----------------------------
 
-CSP = "default-src 'none'; script-src 'self'"
+#: AGSC-06-17 (amended 2026-10-02): the least policy a node serves; a writer MAY add
+#: directives that only restrict further, so a case asserts containment.
+CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'"
 LINKSET_CONTENT_TYPE = 'application/linkset+json; profile="%s"' % PROFILE_URI
 MARKDOWN_CONTENT_TYPE = "text/markdown; charset=utf-8; variant=GFM"
 PROFILE_LINK_HEADER = 'Link: <%s>; rel="profile"' % PROFILE_URI

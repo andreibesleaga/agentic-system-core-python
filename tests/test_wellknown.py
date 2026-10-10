@@ -266,6 +266,57 @@ def test_a_profile_link_header_on_the_wrong_media_type_is_still_reported():
     assert "is not application/linkset+json" in result["findings"][0]["message"]
 
 
+PROFILE_LINK = ('<https://w3id.org/agentic-system-core/profile/agentic-knowledge>; '
+                'rel="profile"')
+
+
+def test_the_media_type_is_required_even_when_the_profile_link_header_is_sent():
+    # AGSC-06-07, AGSC-09-93: the Link header replaces only the profile parameter,
+    # never the media type.
+    state = wellknown._media_type_state({"content-type": "application/json", "link": PROFILE_LINK})
+    assert state["ok"] is False
+    assert state["essence"] == "application/json"
+    assert wellknown._media_type_state({
+        "content-type": 'application/json; profile="https://w3id.org/agentic-system-core'
+                        '/profile/agentic-knowledge"'})["ok"] is False
+    assert wellknown._media_type_state({"content-type": "application/linkset+json",
+                                        "link": PROFILE_LINK})["ok"] is True
+
+
+def _media_findings(content_type, link=None):
+    def fetcher(href, dev=False, cap=None):
+        headers = dict(WELL_SERVED, **{"content-type": content_type})
+        if link is not None:
+            headers["link"] = link
+        with open(case("good"), "rb") as handle:
+            return href, headers, handle.read()
+
+    result, _ = wellknown.validate("https://node.example/.well-known/knowledge-linkset",
+                                   allow_network=True, fetcher=fetcher)
+    return [one for one in result["findings"] if "(AGSC-06-07)" in one["message"]]
+
+
+def test_one_media_type_finding_says_which_half_is_missing():
+    found = _media_findings("application/json", PROFILE_LINK)
+    assert [one["code"] for one in found] == ["AGSC-E201"]
+    assert found[0]["message"].startswith(
+        'media type "application/json" is not application/linkset+json; the profile Link '
+        'header replaces only the profile parameter, never the media type')
+    for content_type in ("application/json",
+                         'application/json; profile="https://w3id.org/agentic-system-core/'
+                         'profile/agentic-knowledge"'):
+        found = _media_findings(content_type)
+        assert [one["code"] for one in found] == ["AGSC-E201"]
+        assert found[0]["message"].startswith(
+            'media type "application/json" is not application/linkset+json and no profile is '
+            'carried: ')
+    found = _media_findings("application/linkset+json")
+    assert [one["code"] for one in found] == ["AGSC-E201"]
+    assert found[0]["message"].startswith("media type application/linkset+json carries no profile: ")
+    assert found[0]["message"].endswith('or a Link header with rel="profile" (AGSC-06-07)')
+    assert _media_findings("application/linkset+json", PROFILE_LINK) == []
+
+
 def test_an_extra_top_member_with_no_usable_linkset_stops_there(tmp_path):
     path = tmp_path / "knowledge-linkset"
     path.write_bytes(b'{"extra":1,"linkset":{}}\n')
