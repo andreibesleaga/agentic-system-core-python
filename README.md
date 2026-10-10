@@ -23,7 +23,7 @@ an integrity digest on every artefact link of its discovery document, a typed gr
 pinned by conformance vectors, a person on every merge — directly, or by a standing
 rule that person recorded — and a starting harness of seven kinds of file out of the same files, with no
 server. This package is the Python reader and checker of such nodes; maintainers read
-[docs/MAINTAINING.md](docs/MAINTAINING.md).
+[docs/MAINTAINING.md](https://github.com/andreibesleaga/agentic-system-core-python/blob/main/docs/MAINTAINING.md).
 
 ## Install
 
@@ -121,6 +121,13 @@ rules: the required members, the closed area and level lists, the identifier
 grammars, the file encoding, the canonical member order, and the resolution of
 every rule identifier and every error code against the specification. An empty
 set is a failure, not a clean run.
+
+Both verbs need a vector directory: this package ships no vector set of its own.
+The vectors are in the npm package `agentic-system-core`, in its `tests/vectors/`
+folder (after `npm install -g agentic-system-core`, `npm root -g` prints the folder
+that holds the package), and in the same folder of the engine repository,
+<https://github.com/andreibesleaga/agentic-system-core>. For example, from a clone of
+the engine: `agsc run-vectors tests/vectors`.
 
 Resolving identifiers needs the specification. This package ships a small index
 of it — the rule identifiers, the registered error codes and the declared

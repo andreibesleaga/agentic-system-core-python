@@ -1,0 +1,38 @@
+# GitHub issue form: a defect in this package.
+# Format: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms
+name: Report a defect
+description: A checker, the vector runner or the reading API does something wrong.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A security problem does not belong here: report it privately, as SECURITY.md says.
+  - type: textarea
+    id: command
+    attributes:
+      label: What you ran
+      description: The exact command or call, the package version (python -m pip show agentic-system-core) and the Python version.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: The output, with --json if the command takes it.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: Name the rule (AGSC-nn-nn) or the vector if one says so.
+    validations:
+      required: true
+  - type: textarea
+    id: engine
+    attributes:
+      label: What the Node engine does
+      description: The engine's answer on the same input, if you ran it. A disagreement between the two is a defect in one of them.
+    validations:
+      required: false

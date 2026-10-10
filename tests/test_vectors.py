@@ -22,7 +22,7 @@ def codes(result):
 def test_the_shipped_vector_copies_pass_the_file_format_check():
     result, count, empty = vectors.validate(str(VECTORS))
     assert result["status"] == "pass", result["findings"]
-    assert count == 69
+    assert count == 70
     for area in vectors_module_areas():
         assert area not in empty
     assert "lint" in empty
@@ -32,14 +32,14 @@ def test_every_vector_of_every_area_this_package_runs_passes():
     report, code = vectors.run(str(VECTORS))
     assert code == 0
     assert report["tally"]["fail"] == 0
-    assert report["tally"]["pass"] == 63
+    assert report["tally"]["pass"] == 64
     # Four vectors need a whole Bundle build and one the publisher's JSON-LD writer:
     # reported not run, by name.
     assert report["tally"]["not_run"] == 5
     assert sorted(report["vectors_not_run"]) == ["build-0015", "build-0017", "disc-0018", "graph-0027", "graph-0028"]
     assert report["areas_run"] == vectors_module_areas()
     assert report["areas_not_run"] == {}
-    assert "63 pass" in report["summary"]
+    assert "64 pass" in report["summary"]
     assert "5 not run by this package" in report["summary"]
 
 
@@ -47,10 +47,10 @@ def test_a_level_selects_its_area_set():
     report, _ = vectors.run(str(VECTORS), level=0)
     # Level 0 runs frontmatter, slug, bundle and discovery only (AGSC-10-02), less the
     # discovery cases AGSC-10-15 assigns to a higher Level: four discovery cases remain.
-    assert report["total"] == 12 + 5 + 4
-    assert report["tally"]["pass"] == 12 + 5 + 4
+    assert report["total"] == 12 + 6 + 4
+    assert report["tally"]["pass"] == 12 + 6 + 4
     report, _ = vectors.run(str(VECTORS), level=3)
-    assert report["total"] == 69
+    assert report["total"] == 70
 
 
 @pytest.mark.skipif(not (ENGINE / "spec").is_dir(), reason="the engine checkout is not here")

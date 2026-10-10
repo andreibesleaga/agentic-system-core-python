@@ -4,8 +4,8 @@ Three verbs run here, in Python, with no Node and no network:
 
     agsc validate-wellknown <file> [--level 0|1|2|3] [--peer <file>] [--json] [--dev]
                                    [--allow-network]
-    agsc validate-vectors [<dir>] [--json] [--quiet] [--spec <dir>] [--root <dir>]
-    agsc run-vectors [<dir>] [--json] [--level 0|1|2|3] [--pending <file>]
+    agsc validate-vectors <dir> [--json] [--quiet] [--spec <dir>] [--root <dir>]
+    agsc run-vectors <dir> [--json] [--level 0|1|2|3] [--pending <file>]
 
 ``agsc --version`` prints the version.  Every other verb belongs to the engine:
 if the Node package's ``agsc`` is on the PATH, the call is handed to it exactly
@@ -39,9 +39,9 @@ Runs natively, with no Node and no network:
                             [--allow-network]
       Check one discovery document served at /.well-known/knowledge-linkset.
       A file is read always; a URL is read only with --allow-network.
-  validate-vectors [<dir>] [--json] [--quiet] [--spec <dir>] [--root <dir>]
+  validate-vectors <dir> [--json] [--quiet] [--spec <dir>] [--root <dir>]
       Check a conformance-vector set against the file-format rules.
-  run-vectors [<dir>] [--json] [--level 0|1|2|3] [--pending <file>]
+  run-vectors <dir> [--json] [--level 0|1|2|3] [--pending <file>]
       Run the vectors of the areas this package implements and name every area
       it does not run.
 

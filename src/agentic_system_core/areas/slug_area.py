@@ -1,10 +1,12 @@
-"""Area ``slug`` — AGSC-01-10 (the grammar and the 1 to 64 bound) and AGSC-01-11
-(uniqueness across the whole Bundle).
+"""Area ``slug`` — AGSC-01-10 (the grammar and the 1 to 64 bound), AGSC-01-11
+(uniqueness across the whole Bundle) and the slugifier of AGSC-02-91 (NFC, then
+only A to Z lower-cased), which lives with the adoption code in ``frontmatter``.
 
 Every expectation follows from the vector's own input: a list of candidate
 strings and the verdicts, or a list of file paths and the collision code.
 """
 
+from .. import frontmatter as frontmatter_module
 from .. import slug as slug_module
 from ._assert import checks, shown
 
@@ -36,6 +38,12 @@ def run(vector):
         findings = slug_module.check(stems, files=given["paths"])
         codes = [one["code"] for one in findings]
         items.append(("error", bool(findings) and codes[0] == expected.get("error"), shown(codes)))
+        return checks(items)
+
+    # The slugifier over a list of file stems.
+    if isinstance(given.get("texts"), list):
+        got = [frontmatter_module.slugify(one) for one in given["texts"]]
+        items.append(("slugs", got == expected.get("slugs"), shown(got)))
         return checks(items)
 
     candidates = given["slugs"] if isinstance(given.get("slugs"), list) else [given.get("slug")]

@@ -77,7 +77,7 @@ def test_validate_wellknown_peer_and_dev_flags():
 def test_validate_vectors():
     code, out, _ = run(["validate-vectors", str(VECTORS)])
     assert code == 0
-    assert "69 input file(s) read" in out
+    assert "70 input file(s) read" in out
     code, out, _ = run(["validate-vectors", str(VECTORS), "--json"])
     assert code == 0
     assert parse_ijson(out)["verb"] == "validate-vectors"
@@ -114,7 +114,7 @@ def test_validate_vectors_root_option(tmp_path):
 def test_run_vectors():
     code, out, _ = run(["run-vectors", str(VECTORS)])
     assert code == 0
-    assert "63 pass" in out
+    assert "64 pass" in out
     assert "not run by this package: build-0015" in out
     code, out, _ = run(["run-vectors", str(VECTORS), "--json"])
     assert parse_ijson(out)["areas_run"] == [

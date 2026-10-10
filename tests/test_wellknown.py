@@ -328,8 +328,8 @@ def test_the_origin_judged_is_the_one_finally_read_after_redirects():
 # every same-origin public artefact it fetches, and checks the rules on cross-origin
 # reading (AGSC-11-03) and caching (AGSC-11-05): a missing header or value is AGSC-E202,
 # a forbidden one AGSC-E201; errors at Level 2 and above, warnings below.  Until then
-# only the media type was read, so a node that served none of these headers passed
-# (verification finding T1, the checker half).  The engine's tools/validate-wellknown
+# only the media type was read, so a node that served none of these headers passed.
+# The engine's tools/validate-wellknown
 # does the same.
 
 GOOD_URL = "https://node.example/.well-known/knowledge-linkset"
@@ -386,7 +386,7 @@ def test_a_node_served_with_the_full_header_set_passes_at_level_2():
 
 
 def test_targets_are_fetched_with_the_federation_cap_and_the_document_with_one_mebibyte():
-    # C17 (b), the Python half: a target is held to federation.max_bytes' default.
+    # A target is held to federation.max_bytes' default (AGSC-11-01).
     from agentic_system_core import net
     fetcher = _serving()
     wellknown.validate(GOOD_URL, level=2, allow_network=True, fetcher=fetcher)
