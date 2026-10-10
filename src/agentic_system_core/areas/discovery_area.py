@@ -67,6 +67,7 @@ def _linkset_case(case, want):
         # and the writer always adds that digest, so the verdict is asked with it.
         probe = copy.deepcopy(document)
         _describedby(probe)["digest"] = [_EMPTY_DIGEST]
+    probe = _with_access(probe, case["base"])
     errors, _, _ = _check(probe, case["level"])
     name = case["name"]
     known = {"name"}
@@ -88,7 +89,7 @@ def _linkset_case(case, want):
     if "presence_would_be" in want:
         known.add("presence_would_be")
         for attribute in want.get("attributes_omitted", []):
-            probe = copy.deepcopy(document)
+            probe = _with_access(copy.deepcopy(document), case["base"])
             _describedby(probe)[attribute] = ["x"]
             _, findings, _ = _check(probe, case["level"])
             hit = [one for one in findings if one["code"] == want["presence_would_be"]["code"]
@@ -101,6 +102,7 @@ def _linkset_case(case, want):
 
 
 _LEDGER_REL = REL_BASE + "ledger"
+_ACCESS_REL = REL_BASE + "access"
 _EMPTY_DIGEST = "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:"
 
 
@@ -114,6 +116,24 @@ def _with_ledger(document, base, head):
     return out
 
 
+def _with_access(document, base):
+    """``document`` with the one rel#access link of a restricted node, if it is one.
+
+    disc-0015 states its restricted document without the rel#access link that
+    AGSC-11-20 requires of every restricted node (disc-0022); the reference handler
+    builds that document with the link, as the writer does, so the verdict is asked
+    of the same document with it.  Any other document is returned unchanged."""
+    gated = any(one.get("agsc-visibility") == ["restricted"]
+                for one in document["linkset"][0].get("describedby", []))
+    if not gated or _ACCESS_REL in document["linkset"][0]:
+        return document
+    out = copy.deepcopy(document)
+    context = out["linkset"][0]
+    context[_ACCESS_REL] = [{"agsc-access": ["credential"], "href": _root(base) + "/access/"}]
+    out["linkset"][0] = dict(sorted(context.items(), key=lambda item: wellknown.utf16_key(item[0])))
+    return out
+
+
 def _level2_document(base, restricted):
     """A Level-2 discovery document of a node at ``base``, public or restricted."""
     describedby = {"agsc-generated-at": ["2026-09-16T00:00:00Z"], "agsc-spec-version": [SPEC_VERSION],
@@ -123,13 +143,39 @@ def _level2_document(base, restricted):
     describedby["digest"] = [_EMPTY_DIGEST]
     if restricted:
         describedby["agsc-visibility"] = ["restricted"]
+        access = [{"agsc-access": ["credential"], "href": base + "/access/"}]
     else:
         describedby.update({"agsc-bundle-hash": [_EMPTY_DIGEST], "agsc-bundle-version": ["v1.4.0"],
                             "agsc-counts": ["clusters=0", "concepts=1", "episodes=0", "gates=0",
                                             "lessons=0", "procedures=0"]})
     describedby = dict(sorted(describedby.items()))
-    return {"linkset": [{"anchor": base + "/", "describedby": [describedby],
-                         "license": [{"href": base + "/legal/"}]}]}
+    context = {"anchor": base + "/", "describedby": [describedby],
+               "license": [{"href": base + "/legal/"}]}
+    if restricted:
+        # A restricted node carries exactly one rel#access link (AGSC-11-20); the
+        # reference handler builds this document with it, as the writer does.
+        context[_ACCESS_REL] = access
+        context = dict(sorted(context.items(), key=lambda item: wellknown.utf16_key(item[0])))
+    return {"linkset": [context]}
+
+
+def _document_case(case, want):
+    """One disc-0022 case: a stated document, judged at the case's Level.
+
+    ``valid`` is judged on every error, and ``findings`` is the complete list of
+    errors, in code and severity (AGSC-11-20, AGSC-09-93)."""
+    errors, _, _ = _check(case["document"], case["level"])
+    name = case["name"]
+    out = [(name + ":valid", (errors == []) == want["valid"], shown(errors))]
+    known = {"name", "valid"}
+    if "findings" in want:
+        known.add("findings")
+        codes = [{"code": one["code"], "severity": one["severity"]} for one in errors]
+        out.append((name + ":findings", codes == want["findings"], shown(codes)))
+    unknown = sorted(set(want) - known)
+    if unknown:
+        out.append((name + ":unhandled", False, shown(unknown)))
+    return out
 
 
 def _ledger_case(case, want):
@@ -261,6 +307,8 @@ def run(vector):
                 handler = _linkset_case
             elif "reader_version" in case:
                 handler = _reader_case
+            elif "document" in case:
+                handler = _document_case
             elif "files" in case:
                 handler = _whole_case
             elif "ledger_head" in case:

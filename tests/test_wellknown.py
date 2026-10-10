@@ -547,3 +547,72 @@ def test_a_restricted_node_is_asked_the_cross_origin_pair_on_its_document_alone(
                                    fetcher=_serving(bare, served))
     hits = _about(result, "AGSC-11-03")
     assert len(hits) == 2 and all("knowledge-linkset" in one["message"] for one in hits), hits
+
+
+#: AGSC-11-20: a restricted node carries exactly one rel#access link.
+_ACCESS_REL = "https://w3id.org/agentic-system-core/rel#access"
+
+
+def _level0_view(access=(), restricted=True):
+    """The Level-0 view of a node at node.example, with the given access-link targets."""
+    described = {"href": "https://node.example/graph.jsonld", "type": "application/ld+json"}
+    if restricted:
+        described.update({"agsc-generated-at": ["2026-09-16T00:00:00Z"],
+                          "agsc-spec-version": ["1.0.0"], "agsc-visibility": ["restricted"]})
+    context = {
+        "alternate": [{"href": "https://node.example/llms.txt", "type": "text/plain"}],
+        "anchor": "https://node.example/",
+        "describedby": [described],
+        "license": [{"href": "https://node.example/legal/"}],
+    }
+    if access:
+        context[_ACCESS_REL] = [{"agsc-access": ["credential"], "href": href} for href in access]
+    return {"linkset": [context]}
+
+
+def _access_findings(document, level=0):
+    findings = []
+    wellknown.check(wellknown.from_value(document), level, findings)
+    return findings, [one for one in findings if "rel#access" in one["message"]]
+
+
+def test_a_restricted_node_with_no_access_link_is_e202():
+    findings, about = _access_findings(_level0_view())
+    assert [(one["code"], one["severity"]) for one in about] == [("AGSC-E202", "error")]
+    assert "exactly one" in about[0]["message"] and "AGSC-11-20" in about[0]["message"]
+    assert findings == about, findings
+
+
+def test_a_restricted_node_with_two_access_links_is_e210():
+    findings, about = _access_findings(_level0_view(
+        access=("https://node.example/access/", "https://node.example/access/other/")))
+    assert [(one["code"], one["severity"]) for one in about] == [("AGSC-E210", "error")]
+    assert "exactly one" in about[0]["message"] and " 2 " in about[0]["message"]
+    assert findings == about, findings
+
+
+def test_a_restricted_node_with_one_access_link_passes():
+    findings, _ = _access_findings(_level0_view(access=("https://node.example/access/",)))
+    assert findings == []
+
+
+def test_the_access_link_is_asked_at_every_level_and_never_of_a_public_node():
+    for level in (1, 2, 3):
+        _, about = _access_findings(_level0_view(), level)
+        assert [one["code"] for one in about] == ["AGSC-E202"], level
+    findings, _ = _access_findings(_level0_view(restricted=False))
+    assert findings == []
+
+
+def test_the_two_checkers_word_the_access_findings_alike():
+    # The same message as the Node tool's, so an operator reads one text whichever
+    # checker ran (AGSC-09-93).
+    _, missing = _access_findings(_level0_view())
+    _, repeated = _access_findings(_level0_view(
+        access=("https://node.example/access/", "https://node.example/access/other/")))
+    assert missing[0]["message"] == (
+        "a restricted node carries exactly one rel#access link, naming where a reader "
+        "obtains credentials; this one carries none (AGSC-11-20)")
+    assert repeated[0]["message"] == (
+        "a restricted node carries exactly one rel#access link, naming where a reader "
+        "obtains credentials; this one carries 2 (AGSC-11-20)")

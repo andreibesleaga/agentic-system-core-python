@@ -37,7 +37,9 @@ Until `1.0.0` is released, every version of this package is a release candidate
 two `0.0.x` versions on PyPI only reserved the name, contain no code and are
 yanked, so a plain `pip install agentic-system-core` finds nothing to install.
 
-Python 3.9 or newer. To forward the other verbs you also need Node 22.13 or
+Python 3.9 or newer; every release is tested on 3.9, 3.13 and 3.14. Python 3.9
+reached its end of life in October 2025 and is still supported by every 1.x
+release of this package. To forward the other verbs you also need Node 22.13 or
 newer and the npm package:
 
 ```
@@ -75,8 +77,9 @@ above the document must also be canonical bytes, every artefact link must carry
 a digest, the graph link must carry its five bundle facts, and the ledger must be
 linked with its head. A node that declares itself `restricted` must instead omit
 its content facts, its ledger link and the digest of every target it does not
-serve openly (AGSC-11-20). A document that declares a newer MINOR of the same
-MAJOR may use relations and attributes this version does not define: they are
+serve openly, and must carry exactly one `rel#access` link naming where a reader
+obtains credentials (AGSC-11-20). A document that declares a newer MINOR of the
+same MAJOR may use relations and attributes this version does not define: they are
 ignored with the warning `AGSC-E506`, never reported as errors; a document of
 another MAJOR gets no such tolerance (AGSC-00-21, AGSC-09-93).
 

@@ -26,7 +26,8 @@ media type and order; AGSC-E202 for a missing REQUIRED attribute; AGSC-E204 for
 a malformed digest; AGSC-E209 for a relation outside AGSC-06-10/06-35;
 AGSC-E506 (a warning) for a relation or a target attribute of a newer MINOR,
 which is ignored (AGSC-00-21, AGSC-09-93);
-AGSC-E210 for a surface declaration that disagrees with the node; AGSC-E601 for
+AGSC-E210 for a surface declaration that disagrees with the node, and for a
+restricted node's second rel#access link (one with none is AGSC-E202); AGSC-E601 for
 non-canonical bytes at Level 2 and above; AGSC-E901/E902/E904/E905/E907 for
 input and transport faults.  A missing response header or header value is
 AGSC-E202 and one the rules forbid is AGSC-E201.
@@ -416,6 +417,17 @@ def check(source, level, findings, dev=False):
                        % name)
         if isinstance(ledger, list) and ledger:
             report("AGSC-E210", "a restricted node publishes no rel#ledger link (AGSC-11-20)")
+        # AGSC-11-20: exactly one rel#access link, at every Level (a restricted node
+        # asserts conformance for its Level-0 view).  A value that is not a non-empty
+        # array is already AGSC-E201 (RFC 9264 section 4.2.2), so only absence and a
+        # count above one are judged here, each once for the relation.
+        access = context.get(REL_BASE + "access")
+        where = ("a restricted node carries exactly one rel#access link, naming where a "
+                 "reader obtains credentials")
+        if REL_BASE + "access" not in context:
+            report("AGSC-E202", where + "; this one carries none (AGSC-11-20)")
+        elif isinstance(access, list) and len(access) > 1:
+            report("AGSC-E210", where + "; this one carries %d (AGSC-11-20)" % len(access))
     elif level >= 2 and not (isinstance(ledger, list) and ledger):
         # AGSC-10-04 / AGSC-09-93: the derived ledger is part of Level 2, so a public
         # node claiming it publishes /ledger.jsonl and links it.

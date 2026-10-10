@@ -1,19 +1,31 @@
-# The test lane of the Python package, on every push and every pull request.
+# The test lane of the Python package, on every push and every pull request, and the
+# test stage of every release (release.yml calls this workflow).
 #
 #   What runs  `pytest` under `coverage` (the report fails below the floor set in
-#              pyproject.toml) on the oldest and the newest Python the package
-#              claims (3.9 and 3.13), with the engine checked out beside this
-#              repository and Node installed, so that the equivalence tests — this
+#              pyproject.toml) on the oldest Python the package claims (3.9), on 3.13
+#              and on the newest (3.14), with the engine checked out beside this
+#              repository, the main site beside it (its committed node is what the
+#              main-site test reads) and Node installed, so that the equivalence tests — this
 #              package's checker against the engine's `tools/validate-wellknown`,
 #              and its vector runner against the engine's — run instead of being
-#              skipped. Then, on 3.13, the two static checks at exact pins:
-#              `ruff check` with the rule set named on the command line, and `mypy`
-#              over the package and the tests. There is no dependency audit because
-#              the package has no runtime dependency (pyproject.toml: `dependencies
-#              = []`); the test tools are pinned to one version each.
+#              skipped. On every leg the engine's port-implementer scenarios
+#              (persona-l of its acceptance lane) then run with this package beside
+#              the engine, and a skipped scenario fails the leg: the one that compares
+#              this package's vector runner with the engine's `conform` runs only where
+#              this checkout is found, so a skip would mean it proved nothing. Then, on
+#              3.13, the two static checks at exact pins: `ruff check` with the rule set
+#              named on the command line, and `mypy` over the package and the tests.
+#              There is no dependency audit because the package has no runtime
+#              dependency (pyproject.toml: `dependencies = []`); the test tools are
+#              pinned to one version each.
+#   Checks     the required status checks are `tests (Python 3.9)`, `tests (Python
+#              3.13)` and `ruff and mypy (Python 3.13)`; the job names stay exactly
+#              these. The 3.14 leg is new and not a required check; a release still
+#              waits for it, because release.yml runs this whole workflow.
 #   Engine     `andreibesleaga/agentic-system-core` at ENGINE_REF (below):
 #              `main` by default; set the variable to a tag or a commit to pin, or
-#              name another ref in a manual run.
+#              name another ref in a manual run. A release passes the engine's
+#              specification tag for the package version as `engine_ref`.
 #   Runner     ubuntu-24.04, the newest image actions/python-versions builds 3.9 for
 #              (the same choice as release.yml).
 #   Secrets    none. The engine repository is public, so the default token reads it.
@@ -21,7 +33,7 @@
 #
 # Every action is pinned to a commit SHA with the version beside it — the checkout
 # and Node SHAs the engine's own workflows pin, the Python SHA release.yml pins.
-# Tool versions (read on 2026-09-25): pytest and coverage as release.yml pins them;
+# Tool versions (read on 2026-09-25): pytest and coverage at one pin each;
 # ruff 0.16.9 (pypi.org/pypi/ruff/json: "version": "0.16.9", MIT) and mypy 2.3.1
 # (pypi.org/pypi/mypy/json: "version": "2.3.1", "requires_python": ">=3.10", MIT).
 # mypy 2.3.1 runs on Python 3.10 or later, so the static checks run on the 3.13 leg.
@@ -33,6 +45,13 @@ on:
     branches:
       - '**'
   pull_request:
+  workflow_call:
+    inputs:
+      engine_ref:
+        description: 'engine ref to check out beside the package (empty = ENGINE_REF)'
+        required: false
+        default: ''
+        type: string
   workflow_dispatch:
     inputs:
       engine_ref:
@@ -54,7 +73,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ['3.9', '3.13']
+        python: ['3.9', '3.13', '3.14']
     defaults:
       run:
         working-directory: agentic-system-core-python
@@ -70,6 +89,14 @@ jobs:
           repository: andreibesleaga/agentic-system-core
           ref: ${{ inputs.engine_ref || env.ENGINE_REF }}
           path: agentic-system-core
+          persist-credentials: false
+      - name: the main site, beside it
+        # Its committed node (www/) is what the main-site test reads; the default
+        # branch, the version the site serves.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: andreibesleaga/AgenticSystemCore.com
+          path: AgenticSystemCore.com
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -89,6 +116,26 @@ jobs:
         run: |
           python -m coverage run -m pytest
           python -m coverage report
+      - name: the port implementer's scenarios, with this package beside the engine
+        # The engine's acceptance lane, filtered to persona-l, on this leg's Python
+        # (PYTHON names the interpreter the scenario runs). The TAP output is kept for
+        # the next step; pipefail (shell: bash) keeps a failing scenario failing here.
+        working-directory: agentic-system-core
+        shell: bash
+        env:
+          PYTHON: python
+        run: node --test --test-name-pattern "persona-l" --test-reporter=tap tests/acceptance/features.test.js | tee "$RUNNER_TEMP/persona-l.tap"
+      - name: the port implementer's scenarios all ran (a skip fails the lane)
+        run: |
+          tap="$RUNNER_TEMP/persona-l.tap"
+          if grep -E '^ok [0-9]+ - persona-l.* # SKIP' "$tap"; then
+            echo "::error::a persona-l scenario was skipped, so it proved nothing: the Python package was not found beside the engine"
+            exit 1
+          fi
+          if ! grep -qE "^ok [0-9]+ - persona-l-port-implementer — The Python package's runner agrees with the engine on the shared vectors$" "$tap"; then
+            echo "::error::the scenario comparing this package's vector runner with the engine did not run"
+            exit 1
+          fi
 
   lint:
     name: ruff and mypy (Python 3.13)

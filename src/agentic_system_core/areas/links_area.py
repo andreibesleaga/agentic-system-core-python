@@ -1,7 +1,9 @@
-"""Area ``links`` — spec/03: inverses, cycles, the cluster tree, anchors and
-inline-link resolution.
+"""Area ``links`` — spec/03: inverses, cycles, the cluster tree, anchors,
+inline-link resolution and orphans.
 
 Every member of ``expected`` is checked; an unknown member is a failure.
+``warnings`` is the whole list of warnings the Link checks report, each
+``{code, slug}`` in slug order: at 1.0 these are the orphans of AGSC-03-10.
 """
 
 from .. import links
@@ -18,6 +20,27 @@ def _errors(items):
     findings.extend(links.hierarchy_findings(items))
     findings.extend(links.body_link_report(items)["findings"])
     return findings
+
+
+def orphans(items):
+    """AGSC-03-10: the items with no inbound Link and no ``clusters[]`` entry.
+
+    An inbound Link is any Link edge whose target is the item, authored or computed
+    (AGSC-03-04, AGSC-03-05); a ``clusters[]`` entry is an inbound reference to the
+    cluster it names; an inline link is an ``asc:mentions`` edge and not a Link
+    (AGSC-03-11), so it does not count.  Returns the warnings in slug order.
+    """
+    edges, _ = links.edges(items)
+    inbound = set(edge["target"] for edge in edges)
+    for item in items:
+        for name in item.get("clusters") or []:
+            inbound.add(name)
+    out = []
+    for item in sorted(items, key=lambda one: one["slug"]):
+        if item["slug"] in inbound or item.get("clusters"):
+            continue
+        out.append({"code": "AGSC-E305", "slug": item["slug"]})
+    return out
 
 
 def run(vector):
@@ -52,6 +75,9 @@ def run(vector):
                 if have(member):
                     got = first[0].get(member) if first else None
                     items.append((member, got == expected[member], shown(got)))
+        if have("warnings"):
+            found = orphans(given_items)
+            items.append(("warnings", found == expected["warnings"], shown(found)))
         if "resolved" in expected or "unresolved" in expected:
             report = links.body_link_report(given_items)
             for member, key in (("resolved", "resolved"), ("unresolved", "unresolved"),

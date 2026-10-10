@@ -48,8 +48,12 @@ and the fix is to copy the files again, never to edit them.
 ## Releases
 
 A release is a tag `v<version>` (PEP 440 spelling, for example `v1.0.0rc7`) pushed by
-the maintainer. `.github/workflows/release.yml` runs the tests on the oldest and newest
-supported Python, builds once, and publishes through PyPI trusted publishing: no token
-is stored in the repository, and every action is pinned to a commit. The version in
-`pyproject.toml` must be the engine's version in PEP 440 spelling; the engine's
-`tools/release` checks that the two agree.
+the maintainer. `.github/workflows/release.yml` checks that the tag is the version and
+that the tagged commit is on `main`, runs the whole test lane (`test.yml`, the same
+legs, scenarios and static checks as a pull request) with the engine checked out at the
+specification tag of the same version (`1.0.0rc7` tests against `1.0.0-rc.7`, `1.0.0`
+and `1.0.0.post1` against `1.0.0`), builds once, and publishes through PyPI trusted
+publishing: no token is stored in the repository, and every action is pinned to a
+commit. The engine's specification tag must therefore exist before this package's tag is
+pushed. The version in `pyproject.toml` must be the engine's version in PEP 440
+spelling; the engine's `tools/release` checks that the two agree.

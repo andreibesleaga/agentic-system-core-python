@@ -184,17 +184,24 @@ def test_sitemap_robots_and_linkset_writers():
     level0 = discovery.linkset("https://a.example/", level=0)
     assert "digest" not in discovery.linkset_bytes(level0)
     restricted = discovery.linkset("https://a.example/", level=2, restricted=True,
-                                   facts={"generated_at": "T", "spec_version": "S"})
+                                   facts={"generated_at": "T", "spec_version": "S"},
+                                   access="https://a.example/access/")
     findings = []
     wellknown.check(wellknown.from_value(restricted), 2, findings)
     assert [one for one in findings if one["severity"] == "error"] == []
+    # AGSC-11-20: the one rel#access link is what a restricted node may not leave out.
+    del restricted["linkset"][0]["https://w3id.org/agentic-system-core/rel#access"]
+    findings = []
+    wellknown.check(wellknown.from_value(restricted), 2, findings)
+    assert [one["code"] for one in findings if one["severity"] == "error"] == ["AGSC-E202"]
     raw = wellknown.from_value(b'{"linkset":[]}')
     assert raw.data == b'{"linkset":[]}'
 
 
 def test_a_restricted_node_that_publishes_a_forbidden_fact_is_e210():
     document = discovery.linkset("https://a.example/", level=2, restricted=True,
-                                 facts={"generated_at": "T", "spec_version": "S"})
+                                 facts={"generated_at": "T", "spec_version": "S"},
+                                 access="https://a.example/access/")
     assert "https://w3id.org/agentic-system-core/rel#ledger" not in document["linkset"][0]
     document["linkset"][0]["describedby"][0]["agsc-counts"] = ["concepts=1"]
     findings = []
