@@ -50,6 +50,22 @@ def test_the_readme_says_where_the_vectors_are():
     assert "https://github.com/andreibesleaga/agentic-system-core" in text
 
 
+def test_a_final_version_installs_with_a_plain_pip_install():
+    # Once the package version has no pre-release part, pip finds it without `--pre`.
+    # `--pre` would then also pick up a candidate of a later version, so the README names
+    # the plain command and does not call the current version a release candidate.
+    version = re.search(r'^version = "([^"]+)"$', (ROOT / "pyproject.toml").read_text(encoding="utf-8"), re.M).group(1)
+    if re.search(r"[a-z]", version):
+        pytest.skip("the package version %s is a pre-release" % version)
+    text = README.read_text(encoding="utf-8")
+    flat = " ".join(text.split())
+    assert "\npip install agentic-system-core\n" in text
+    assert "pip install --pre" not in text
+    assert "every version of this package is a release candidate" not in flat
+    assert "Until `%s` is released" % version not in flat
+    assert not re.search(r"\b\d+\.\d+\.\d+rc\d+\b", text), "the README names a release-candidate version"
+
+
 @pytest.mark.parametrize("path", SITE_DOCUMENTS, ids=lambda one: one.parts[-4])
 def test_each_site_path_is_the_build_folder_its_configuration_names(path):
     # The suite reads a site's built discovery file from the folder that site's own

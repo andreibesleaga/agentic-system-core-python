@@ -28,14 +28,13 @@ server. This package is the Python reader and checker of such nodes; maintainers
 ## Install
 
 ```
-pip install --pre agentic-system-core
+pip install agentic-system-core
 ```
 
-Until `1.0.0` is released, every version of this package is a release candidate
-(`1.0.0rc7` today), and pip installs a release candidate only when asked: use
-`--pre`, or name the version, `pip install "agentic-system-core==1.0.0rc7"`. The
-two `0.0.x` versions on PyPI only reserved the name, contain no code and are
-yanked, so a plain `pip install agentic-system-core` finds nothing to install.
+This installs the latest release. A release candidate of a later version is
+installed only when asked for, with `--pre` or by naming its version. The two
+`0.0.x` versions on PyPI only reserved the name, contain no code and are yanked,
+so pip never picks them.
 
 Python 3.9 or newer; every release is tested on 3.9, 3.13 and 3.14. Python 3.9
 reached its end of life in October 2025 and is still supported by every 1.x
@@ -203,7 +202,8 @@ arguments and never through a shell.
 
 The specification version is `1.0.0`. Python packages use PEP 440, which spells
 a release the same way as SemVer, so the version on PyPI is `1.0.0` too; a
-release candidate would differ (SemVer's `1.0.0-rc.7` is PEP 440's `1.0.0rc7`).
+release candidate is spelled differently: SemVer's `X.Y.Z-rc.N` is PEP 440's
+`X.Y.ZrcN`.
 `agsc --version` prints the package version and the specification version.
 
 ## The vector copies in this repository
