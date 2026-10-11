@@ -148,7 +148,7 @@ rule text of the specification alone, in the standard library:
 | `jcs` | RFC 8785 canonical JSON with NFC before sorting |
 | `links` | the fourteen Link keys and their inverses, the cycle and cluster-tree checks, heading anchors, and inline-link resolution over a small CommonMark 0.31.2 scanner (headings and inline links only, outside code; its subset is written down in `agentic_system_core/markdown.py`) |
 | `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, and the JSON-LD context of AGSC-06-32 with the compaction it round-trips |
-| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt`, the content version and the staleness comparison; five vectors of these seven areas need a whole build or the publisher's writers (`build-0015`, `build-0017`, `disc-0018`, `graph-0027`, `graph-0028`) and are reported as not run, by name |
+| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt`, the content version and the staleness comparison; fourteen vectors of these seven areas need a whole build or the publisher's writers (`build-0015`, `build-0017`, `build-0020` to `build-0028`, `disc-0018`, `graph-0027`, `graph-0028`) and are reported as not run, by name |
 | `discovery` | `/llms.txt` and `/llms-full.txt` byte for byte, reachability, the sitemap and robots facts, the link-set writer, and the discovery-document checks including the restricted-node rule of AGSC-11-20 |
 
 The other areas need a Bundle build, the engine's composition or governance
