@@ -105,11 +105,15 @@ def spec_index_from(directory):
     overview_path = os.path.join(directory, "00-overview.md")
     with open(overview_path, "rb") as handle:
         overview = handle.read().decode("utf-8")
-    match = re.search(r"1\.0\.0-rc\.\d+", overview)
+    # The declaration line, a release or a candidate; a released overview still quotes
+    # the candidates before it as history, so the first candidate literal is not the
+    # declaration.  A file without the declaration line falls back to its first version.
+    match = (re.search(r'spec_version: "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"', overview)
+             or re.search(r"(\d+\.\d+\.\d+(?:-rc\.\d+)?)", overview))
     return {
         "error_codes": codes,
         "rule_ids": rules,
-        "spec_version": match.group(0) if match else "unknown",
+        "spec_version": match.group(1) if match else "unknown",
     }
 
 

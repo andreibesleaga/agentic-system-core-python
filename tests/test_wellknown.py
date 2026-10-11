@@ -520,7 +520,7 @@ def test_a_restricted_node_is_asked_the_cross_origin_pair_on_its_document_alone(
                        "type": "text/plain"}],
         "anchor": "https://node.example/",
         "describedby": [{"agsc-generated-at": ["2026-01-01T00:00:00Z"],
-                         "agsc-spec-version": ["1.0.0-rc.7"], "agsc-visibility": ["restricted"],
+                         "agsc-spec-version": ["1.0.0"], "agsc-visibility": ["restricted"],
                          "digest": [digest(graph)], "href": "https://node.example/graph.jsonld",
                          "type": "application/ld+json"}],
         "https://w3id.org/agentic-system-core/rel#access": [

@@ -20,7 +20,20 @@ def run(argv):
 def test_version():
     code, out, _ = run(["--version"])
     assert code == 0
-    assert "1.0.0rc7" in out and "1.0.0-rc.7" in out
+    assert out.strip() == "agsc 1.0.0 (Python package; specification 1.0.0)"
+
+
+def test_release_metadata():
+    """The package states the release, and the trove classifier says it is stable."""
+    import agentic_system_core as pkg
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "pyproject.toml"), encoding="utf-8") as handle:
+        pyproject = handle.read()
+    assert (pkg.__version__, pkg.SEMVER_VERSION, pkg.SPEC_VERSION) == ("1.0.0", "1.0.0", "1.0.0")
+    assert '\nversion = "1.0.0"\n' in pyproject
+    assert '"Development Status :: 5 - Production/Stable",' in pyproject
+    assert "Development Status :: 4" not in pyproject
 
 
 def test_help_and_no_arguments():
@@ -96,14 +109,14 @@ def test_validate_vectors_usage_faults():
 def test_validate_vectors_with_a_live_spec_directory(tmp_path):
     spec = tmp_path / "spec"
     spec.mkdir()
-    (spec / "00-overview.md").write_bytes(b"version 1.0.0-rc.7\n**AGSC-00-01** a rule.\n")
+    (spec / "00-overview.md").write_bytes(b"version 1.0.0\n**AGSC-00-01** a rule.\n")
     (spec / "04-canonicalization.md").write_bytes(b"**AGSC-04-05** the canonical form.\n")
     (spec / "09-conformance.md").write_bytes(b"| `AGSC-E201` | a shape fault |\n")
     code, out, _ = run(["validate-vectors", str(VECTORS), "--spec", str(spec), "--json"])
     # The shipped vectors name rules this cut-down spec does not define, so the
     # run fails - which is the point: the resolution is real, not decorative.
     assert code == 1
-    assert parse_ijson(out)["spec_version"] == "1.0.0-rc.7"
+    assert parse_ijson(out)["spec_version"] == "1.0.0"
 
 
 def test_validate_vectors_root_option(tmp_path):

@@ -47,7 +47,7 @@ and the fix is to copy the files again, never to edit them.
 
 ## Releases
 
-A release is a tag `v<version>` (PEP 440 spelling, for example `v1.0.0rc7`) pushed by
+A release is a tag `v<version>` (PEP 440 spelling, for example `v1.0.0`) pushed by
 the maintainer. `.github/workflows/release.yml` checks that the tag is the version and
 that the tagged commit is on `main`, runs the whole test lane (`test.yml`, the same
 legs, scenarios and static checks as a pull request) with the engine checked out at the

@@ -187,7 +187,7 @@ def _good(**overrides):
     vector = {
         "area": "jcs", "description": "A fixture.", "expected": {"output": "{}"},
         "id": "jcs-9100", "input": {"value": {}}, "level": "required",
-        "options": {"spec_version": "1.0.0-rc.7"}, "rule": "AGSC-04-05",
+        "options": {"spec_version": "1.0.0"}, "rule": "AGSC-04-05",
     }
     vector.update(overrides)
     return vector
@@ -302,10 +302,20 @@ def test_a_file_that_is_not_json_is_e201(tmp_path):
 
 def test_the_bundled_spec_index_is_the_one_the_specification_declares():
     index = vectors.bundled_spec_index()
-    assert index["spec_version"] == "1.0.0-rc.7"
+    assert index["spec_version"] == "1.0.0"
     assert "AGSC-04-05" in index["rule_ids"]
     assert "AGSC-E201" in index["error_codes"]
     assert len(index["error_codes"]) == 91  # AGSC-E416 registered 2026-09-24
+
+
+def test_the_index_reads_the_declaration_not_a_candidate_quoted_as_history(tmp_path):
+    spec = tmp_path / "spec"
+    spec.mkdir()
+    (spec / "00-overview.md").write_bytes(
+        b'`spec_version: "1.0.0"`. Rules follow.\n\n'
+        b"> **This version.** Since `1.0.0-rc.6`, the first public release candidate, ...\n")
+    (spec / "09-conformance.md").write_bytes(b"| `AGSC-E201` | a shape fault |\n")
+    assert vectors.spec_index_from(str(spec))["spec_version"] == "1.0.0"
 
 
 @pytest.mark.skipif(not (ENGINE / "spec").is_dir(), reason="the engine checkout is not here")
@@ -341,7 +351,7 @@ def test_a_vector_directory_that_is_not_tests_vectors_still_names_files(tmp_path
 def test_a_specification_that_declares_no_rule_is_called_vacuous(tmp_path):
     spec = tmp_path / "spec"
     spec.mkdir()
-    (spec / "00-overview.md").write_bytes(b"1.0.0-rc.7\n")
+    (spec / "00-overview.md").write_bytes(b"1.0.0\n")
     (spec / "09-conformance.md").write_bytes(b"| `AGSC-E201` | a shape fault |\n")
     area = tmp_path / "vectors" / "jcs"
     _write(area, "a.json", _good())

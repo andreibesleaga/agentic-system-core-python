@@ -201,9 +201,10 @@ arguments and never through a shell.
 
 ## Version
 
-The specification version is `1.0.0-rc.7`, a SemVer pre-release. Python packages
-use PEP 440, which spells the same pre-release `1.0.0rc7`, and that is the
-version on PyPI. `agsc --version` prints both.
+The specification version is `1.0.0`. Python packages use PEP 440, which spells
+a release the same way as SemVer, so the version on PyPI is `1.0.0` too; a
+release candidate would differ (SemVer's `1.0.0-rc.7` is PEP 440's `1.0.0rc7`).
+`agsc --version` prints the package version and the specification version.
 
 ## The vector copies in this repository
 
