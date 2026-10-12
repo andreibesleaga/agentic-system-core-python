@@ -4,8 +4,9 @@
 and calls ``test.yml`` itself, so a release is tested exactly as a pull request is, with
 the engine checked out at the specification tag that belongs to the package version.
 The release refuses a tag that is not the version, a version with no engine tag, and a
-tag whose commit is not on ``main``. Both lanes run the engine's port-implementer
-scenario with this package beside the engine and fail when it is skipped.
+tag whose commit is not on ``main``. Both lanes run the engine's scenarios that need this
+package beside the engine (the port implementer's and the restricted publisher's) and
+fail when one of them is skipped.
 
 The steps that decide something are run here as they are written in the workflow, on
 scratch input: the version step with a scratch ``pyproject.toml``, the ancestor check
@@ -35,10 +36,13 @@ pytestmark = pytest.mark.skipif(
 #: The required status checks of this repository: the job names the test lane must keep.
 PROTECTED = ["tests (Python 3.9)", "tests (Python 3.13)", "ruff and mypy (Python 3.13)"]
 
-#: The scenario of the engine that needs this package beside it.
+#: The scenarios of the engine that need this package beside it.
 PORT_SCENARIO = (
     "persona-l-port-implementer \u2014 The Python package's runner agrees with the engine"
     " on the shared vectors"
+)
+RESTRICTED_SCENARIO = (
+    "persona-o-restricted \u2014 Both checkers flag a restricted node without an access link"
 )
 
 
@@ -114,29 +118,38 @@ def test_every_leg_checks_out_the_main_site_beside_the_package():
     assert "persist-credentials: false" in body
 
 
-def test_every_leg_runs_the_port_implementer_scenario_beside_the_engine():
+def test_every_leg_runs_the_scenarios_that_need_this_package_beside_the_engine():
     tests = job(text(".github/workflows/test.yml"), "tests")
-    command = ('node --test --test-name-pattern "persona-l" --test-reporter=tap'
+    command = ('node --test --test-name-pattern "persona-l|persona-o" --test-reporter=tap'
                ' tests/acceptance/features.test.js')
     assert command in tests
-    assert "PYTHON: python" in tests, "the scenario must use the leg's Python"
+    assert "PYTHON: python" in tests, "the scenarios must use the leg's Python"
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="no bash on this machine")
 @pytest.mark.parametrize("lines, passes", [
     (["ok 1 - persona-l-port-implementer \u2014 A Level-0 node",
       "ok 2 - " + PORT_SCENARIO,
-      "ok 3 - persona-l-port-implementer \u2014 The reference engine's Level-3 report"], True),
+      "ok 3 - persona-l-port-implementer \u2014 The reference engine's Level-3 report",
+      "ok 4 - persona-o-restricted \u2014 A restricted node omits the bundle facts",
+      "ok 5 - " + RESTRICTED_SCENARIO], True),
     (["ok 1 - persona-l-port-implementer \u2014 A Level-0 node",
       "ok 2 - " + PORT_SCENARIO + " # SKIP not available here (python-package): no Python"
+      " checker package at /x",
+      "ok 3 - " + RESTRICTED_SCENARIO], False),
+    (["ok 1 - " + PORT_SCENARIO,
+      "ok 2 - " + RESTRICTED_SCENARIO + " # SKIP not available here (python-package): no Python"
       " checker package at /x"], False),
-    (["ok 1 - persona-l-port-implementer \u2014 A Level-0 node"], False),
+    (["ok 1 - persona-l-port-implementer \u2014 A Level-0 node",
+      "ok 2 - " + RESTRICTED_SCENARIO], False),
+    (["ok 1 - " + PORT_SCENARIO,
+      "ok 2 - persona-o-restricted \u2014 A restricted node omits the bundle facts"], False),
 ])
-def test_a_skipped_port_scenario_fails_the_lane(tmp_path, lines, passes):
+def test_a_skipped_scenario_that_needs_this_package_fails_the_lane(tmp_path, lines, passes):
     script = step_script(text(".github/workflows/test.yml"),
-                         "the port implementer's scenarios all ran (a skip fails the lane)")
-    (tmp_path / "persona-l.tap").write_text("TAP version 13\n" + "\n".join(lines) + "\n# fail 0\n",
-                                            encoding="utf-8")
+                         "the scenarios that need this package all ran (a skip fails the lane)")
+    (tmp_path / "python-package.tap").write_text("TAP version 13\n" + "\n".join(lines)
+                                                 + "\n# fail 0\n", encoding="utf-8")
     env = dict(os.environ, RUNNER_TEMP=str(tmp_path))
     done = subprocess.run(["bash", "-e", "-c", script], cwd=str(tmp_path), env=env,
                           capture_output=True, text=True)
@@ -237,7 +250,7 @@ def test_the_classifiers_name_exactly_the_pythons_from_the_floor_to_the_newest_l
 def test_the_readme_says_python_3_9_is_past_its_end_of_life_and_still_supported():
     readme = " ".join(text("README.md").split())
     assert re.search(r"Python 3\.9 reached its end of life in October 2025", readme)
-    assert "still supported by every 1.x release" in readme
+    assert "still supported by this release" in readme
 
 
 def test_dependabot_updates_the_pinned_actions():

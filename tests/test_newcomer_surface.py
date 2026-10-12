@@ -66,6 +66,29 @@ def test_a_final_version_installs_with_a_plain_pip_install():
     assert not re.search(r"\b\d+\.\d+\.\d+rc\d+\b", text), "the README names a release-candidate version"
 
 
+CHANGELOG_URL = "https://github.com/andreibesleaga/agentic-system-core-python/blob/main/CHANGELOG.md"
+
+
+def test_the_change_log_is_reachable_from_the_package_page():
+    # PyPI shows the project links and the README, and the sdist is what a
+    # downstream packager reads, so the change log is reachable from all three.
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    urls = pyproject.split("[project.urls]\n", 1)[1].split("\n\n", 1)[0]
+    assert re.search(r'^Changelog = "%s"$' % re.escape(CHANGELOG_URL), urls, re.M)
+    manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8").splitlines()
+    assert "include CHANGELOG.md" in manifest
+    assert (ROOT / "CHANGELOG.md").is_file()
+    assert "](%s)" % CHANGELOG_URL in README.read_text(encoding="utf-8")
+
+
+def test_the_readme_promises_python_3_9_for_this_release_only():
+    # Python 3.9 is kept at this release; a later release may drop it, so the
+    # README does not promise it for every release of the major version.
+    flat = " ".join(README.read_text(encoding="utf-8").split())
+    assert "Python 3.9 reached its end of life in October 2025 and is still supported by this release" in flat
+    assert "every 1.x release" not in flat
+
+
 @pytest.mark.parametrize("path", SITE_DOCUMENTS, ids=lambda one: one.parts[-4])
 def test_each_site_path_is_the_build_folder_its_configuration_names(path):
     # The suite reads a site's built discovery file from the folder that site's own

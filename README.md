@@ -37,9 +37,9 @@ installed only when asked for, with `--pre` or by naming its version. The two
 so pip never picks them.
 
 Python 3.9 or newer; every release is tested on 3.9, 3.13 and 3.14. Python 3.9
-reached its end of life in October 2025 and is still supported by every 1.x
-release of this package. To forward the other verbs you also need Node 22.13 or
-newer and the npm package:
+reached its end of life in October 2025 and is still supported by this release
+(1.0.0). To forward the other verbs you also need Node 22.13 or newer and the
+npm package:
 
 ```
 npm install -g agentic-system-core
@@ -205,6 +205,8 @@ a release the same way as SemVer, so the version on PyPI is `1.0.0` too; a
 release candidate is spelled differently: SemVer's `X.Y.Z-rc.N` is PEP 440's
 `X.Y.ZrcN`.
 `agsc --version` prints the package version and the specification version.
+What changed in each version, and what the checker may now report, is in the
+[change log](https://github.com/andreibesleaga/agentic-system-core-python/blob/main/CHANGELOG.md).
 
 ## The vector copies in this repository
 

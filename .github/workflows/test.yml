@@ -8,11 +8,14 @@
 #              main-site test reads) and Node installed, so that the equivalence tests — this
 #              package's checker against the engine's `tools/validate-wellknown`,
 #              and its vector runner against the engine's — run instead of being
-#              skipped. On every leg the engine's port-implementer scenarios
-#              (persona-l of its acceptance lane) then run with this package beside
+#              skipped. On every leg the engine's scenarios that need this package
+#              (persona-l, the port implementer, and persona-o, the restricted
+#              publisher, of its acceptance lane) then run with this package beside
 #              the engine, and a skipped scenario fails the leg: the one that compares
-#              this package's vector runner with the engine's `conform` runs only where
-#              this checkout is found, so a skip would mean it proved nothing. Then, on
+#              this package's vector runner with the engine's `conform`, and the one
+#              in which both checkers flag a restricted node without an access link,
+#              run only where this checkout is found, so a skip would mean they
+#              proved nothing. Then, on
 #              3.13, the two static checks at exact pins: `ruff check` with the rule set
 #              named on the command line, and `mypy` over the package and the tests.
 #              There is no dependency audit because the package has no runtime
@@ -116,24 +119,29 @@ jobs:
         run: |
           python -m coverage run -m pytest
           python -m coverage report
-      - name: the port implementer's scenarios, with this package beside the engine
-        # The engine's acceptance lane, filtered to persona-l, on this leg's Python
-        # (PYTHON names the interpreter the scenario runs). The TAP output is kept for
-        # the next step; pipefail (shell: bash) keeps a failing scenario failing here.
+      - name: the scenarios that need this package, with it beside the engine
+        # The engine's acceptance lane, filtered to persona-l (the port implementer)
+        # and persona-o (the restricted publisher), on this leg's Python (PYTHON names
+        # the interpreter the scenarios run). The TAP output is kept for the next
+        # step; pipefail (shell: bash) keeps a failing scenario failing here.
         working-directory: agentic-system-core
         shell: bash
         env:
           PYTHON: python
-        run: node --test --test-name-pattern "persona-l" --test-reporter=tap tests/acceptance/features.test.js | tee "$RUNNER_TEMP/persona-l.tap"
-      - name: the port implementer's scenarios all ran (a skip fails the lane)
+        run: node --test --test-name-pattern "persona-l|persona-o" --test-reporter=tap tests/acceptance/features.test.js | tee "$RUNNER_TEMP/python-package.tap"
+      - name: the scenarios that need this package all ran (a skip fails the lane)
         run: |
-          tap="$RUNNER_TEMP/persona-l.tap"
-          if grep -E '^ok [0-9]+ - persona-l.* # SKIP' "$tap"; then
-            echo "::error::a persona-l scenario was skipped, so it proved nothing: the Python package was not found beside the engine"
+          tap="$RUNNER_TEMP/python-package.tap"
+          if grep -E '^ok [0-9]+ - persona-[lo]-.* # SKIP' "$tap"; then
+            echo "::error::a persona-l or persona-o scenario was skipped, so it proved nothing: the Python package was not found beside the engine"
             exit 1
           fi
           if ! grep -qE "^ok [0-9]+ - persona-l-port-implementer — The Python package's runner agrees with the engine on the shared vectors$" "$tap"; then
             echo "::error::the scenario comparing this package's vector runner with the engine did not run"
+            exit 1
+          fi
+          if ! grep -qE "^ok [0-9]+ - persona-o-restricted — Both checkers flag a restricted node without an access link$" "$tap"; then
+            echo "::error::the scenario in which both checkers flag a restricted node without an access link did not run"
             exit 1
           fi
 
