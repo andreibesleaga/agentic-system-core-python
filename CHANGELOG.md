@@ -38,6 +38,8 @@ specification):
   among them `slug-0007`, the new build, front-matter and links cases, and `disc-0022`.
 - The links area reports orphan items.
 - `SECURITY.md`, `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`.
+- The change log is linked from the package page on PyPI (a `Changelog` project link and a
+  link in the README) and ships in the source distribution.
 
 ### Changed
 
@@ -49,8 +51,16 @@ specification):
 - The usage text no longer shows the directory of `validate-vectors` and `run-vectors` as
   optional.
 - Dependabot keeps the pinned actions up to date.
+- CI: the engine's restricted-publisher scenario, in which both checkers flag a restricted
+  node without an access link, runs on every leg with this package beside the engine, next
+  to the port implementer's scenarios; a skipped scenario fails the leg.
 
 ### Fixed
 
 - The main-site test looked for the site's discovery document in a removed folder and
   always skipped; it runs again when the site is checked out beside the package.
+- The JSON-LD context address that `context.compact()` writes names the vocabulary version
+  `1.0.0` (`https://w3id.org/agentic-system-core/ns/1.0.0/context.jsonld`), the address the
+  engine derives from the vocabulary's `owl:versionIRI` (AGSC-05-09, AGSC-05-25); it named
+  the pre-release `/ns/1.0.0-draft.1/`. A test compares it with the engine's vocabulary
+  when the engine is beside this repository.
