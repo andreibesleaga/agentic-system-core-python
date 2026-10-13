@@ -25,10 +25,10 @@ def run(vector):
         if expected.get("pattern") is not None:
             items.append(("pattern", slug_module.SLUG_PATTERN == expected["pattern"],
                           slug_module.SLUG_PATTERN))
-        if expected.get("lookahead") is False:
-            items.append(("no-lookahead",
-                          "(?=" not in slug_module.SLUG_PATTERN
-                          and "(?!" not in slug_module.SLUG_PATTERN,
+        if "lookahead" in expected:
+            # Asserted at the value the case states, in either polarity.
+            used = "(?=" in slug_module.SLUG_PATTERN or "(?!" in slug_module.SLUG_PATTERN
+            items.append(("lookahead", used is expected["lookahead"],
                           slug_module.SLUG_PATTERN))
         return checks(items)
 

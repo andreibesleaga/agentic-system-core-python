@@ -41,21 +41,35 @@ function handlerFor(area) {
 const overview = fs.readFileSync(path.join(ROOT, 'spec/00-overview.md'), 'utf8');
 const schemas = nodeFs.readSchemas(ROOT);
 const ctx = { root: ROOT, schemas: validate.schemas(schemas), itemSchema: schemas.item,
-  specVersion: (/1\.0\.0-rc\.\d+/u.exec(overview) || ['unknown'])[0],
+  specVersion: (/spec_version: "([^"]+)"/u.exec(overview) || [0, 'unknown'])[1],
   surfaces: conformance.DECLARED_SURFACES };
 const raw = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/conformance/pending.json'), 'utf8'));
 const { results } = conformance.runAll(conformance.vectors(nodeFs.createFileSystem(ROOT)),
   { ctx, handlerFor, pending: new Set(raw.pending || []), reason: raw.reason || {} });
-process.stdout.write(JSON.stringify(results.map((r) => [r.id, r.area, r.status])));
+process.stdout.write(JSON.stringify({ specVersion: ctx.specVersion,
+  results: results.map((r) => [r.id, r.area, r.status]) }));
 """
 
 
-def _node_statuses():
+def _node_run():
+    """The engine's runner over its live vector set: the version it ran under and
+    one (id, area, status) per vector."""
     done = subprocess.run(["node", "-e", _SCRIPT, str(ENGINE)], capture_output=True,
                           text=True, cwd=str(ENGINE))
     assert done.returncode == 0, done.stderr[-2000:]
+    return json.loads(done.stdout)
+
+
+def _node_statuses():
     return dict((identifier, (area, status))
-                for identifier, area, status in json.loads(done.stdout))
+                for identifier, area, status in _node_run()["results"])
+
+
+def test_the_engine_side_of_the_proof_runs_at_the_version_this_package_indexes():
+    # The engine's area handlers read the version they run under from the context the
+    # runner is given; the proof holds only when that version is the one this package
+    # indexes, a release as much as a candidate.
+    assert _node_run()["specVersion"] == vectors.bundled_spec_index()["spec_version"]
 
 
 def test_both_runners_agree_on_every_vector_of_every_area_this_package_runs():

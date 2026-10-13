@@ -339,11 +339,20 @@ def check(source, level, findings, dev=False):
     except ValueError as error:
         report("AGSC-E201", "not I-JSON: %s" % error)
         return None
-    if level >= 2 and text != canonicalize_raw(document) + "\n":
-        report(
-            "AGSC-E601",
-            "document is not JCS-canonical with exactly one trailing LF (AGSC-04-04, AGSC-06-08)",
-        )
+    if level >= 2:
+        try:
+            canonical = canonicalize_raw(document) + "\n"
+        except RecursionError:
+            # The canonical form is written recursively, deeper than the reader
+            # reads; a document the reader held but the writer cannot is refused
+            # the same way, with the finding the Node checker gives.
+            report("AGSC-E201", "not I-JSON: nesting too deep")
+            return None
+        if text != canonical:
+            report(
+                "AGSC-E601",
+                "document is not JCS-canonical with exactly one trailing LF (AGSC-04-04, AGSC-06-08)",
+            )
     if not isinstance(document, dict):
         report("AGSC-E201", "document is not a JSON object")
         return None

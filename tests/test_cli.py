@@ -2,13 +2,14 @@
 
 import io
 import os
+import re
 import stat
 
 import pytest
 
 from agentic_system_core import cli
 from agentic_system_core.jcs import parse_ijson
-from conftest import VECTORS, case
+from conftest import ENGINE, VECTORS, case
 
 
 def run(argv):
@@ -222,6 +223,58 @@ def test_an_unknown_verb_without_the_engine_says_what_to_install():
     assert code == 2
     assert "agentic-system-core" in err.getvalue()
     assert "Node 22.13 or newer" in err.getvalue()
+
+
+def test_a_verb_outside_the_sixteen_without_the_engine_is_refused_with_e001():
+    # AGSC-09-07: a distribution that is not a full engine forwards every other verb
+    # or refuses it with AGSC-E001 and exit 2.  With no engine to forward to, a verb
+    # the engine does not have is refused with the code, not answered with the
+    # install sentence.
+    err = io.StringIO()
+    code = cli.forward(["frobnicate", "--json"], err, finder=lambda: None)
+    assert code == 2
+    assert err.getvalue() == 'agsc: AGSC-E001 unknown verb "frobnicate"\n'
+
+
+def test_each_of_the_sixteen_without_the_engine_keeps_the_install_sentence():
+    for verb in cli.ENGINE_VERBS:
+        err = io.StringIO()
+        code = cli.forward([verb], err, finder=lambda: None)
+        assert code == 2, verb
+        assert "install the npm package agentic-system-core" in err.getvalue(), verb
+        assert "AGSC-E001" not in err.getvalue(), verb
+
+
+def test_a_verb_outside_the_sixteen_is_still_forwarded_when_the_engine_is_found():
+    # The engine answers an unknown verb itself (AGSC-E001, exit 2); with an engine
+    # found, every verb that is not native goes to it exactly as typed.
+    calls = []
+
+    class Completed(object):
+        returncode = 2
+
+    def runner(argv):
+        calls.append(argv)
+        return Completed()
+
+    err = io.StringIO()
+    code = cli.forward(["frobnicate"], err, runner=runner, finder=lambda: "/opt/npm/agsc")
+    assert code == 2
+    assert calls == [["/opt/npm/agsc", "frobnicate"]]
+    assert err.getvalue() == ""
+
+
+def test_the_engine_verbs_are_the_sixteen_of_the_specification():
+    assert len(cli.ENGINE_VERBS) == 16
+    assert len(set(cli.ENGINE_VERBS)) == 16
+    assert not set(cli.ENGINE_VERBS) & set(cli.NATIVE_VERBS)
+    conformance = ENGINE / "spec" / "09-conformance.md"
+    if not conformance.is_file():
+        pytest.skip("the engine checkout is not beside this one; the sixteen are not re-read from AGSC-09-07")
+    rule = [line for line in conformance.read_text(encoding="utf-8").splitlines()
+            if "**AGSC-09-07**" in line][0]
+    listed = rule.split("exactly **sixteen**: ", 1)[1].split(". ", 1)[0]
+    assert re.findall(r"`([a-z-]+)`", listed) == list(cli.ENGINE_VERBS)
 
 
 def test_the_node_floor_is_the_one_the_readme_and_the_engine_state():

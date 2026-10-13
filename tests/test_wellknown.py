@@ -1,9 +1,11 @@
 """The discovery-file checker, over the fixture set and the two sites' files."""
 
+import io
 import json
 
 import pytest
 
+from agentic_system_core import cli
 from agentic_system_core import wellknown
 from agentic_system_core.net import TransportError
 from conftest import SITE_DOCUMENTS, WELLKNOWN, case
@@ -112,6 +114,33 @@ def test_a_file_over_one_mebibyte_is_e904(tmp_path):
     big.write_bytes(b"x" * (1048576 + 1))
     result, _ = wellknown.validate(str(big))
     assert codes(result) == ["AGSC-E904"]
+
+
+@pytest.mark.parametrize("depth,level", [(5000, 0), (5000, 2), (700, 2)],
+                         ids=["reader-level-0", "reader-level-2", "canonical-form-level-2"])
+def test_a_document_nested_too_deep_for_the_checker_is_e201_not_a_traceback(tmp_path, depth, level):
+    # Well under the one-mebibyte cap.  5,000 levels is far above any interpreter's
+    # default recursion limit, so the reader refuses the text at every Level; 700 levels
+    # is read (one frame a level) but not written back in canonical form at Level 2
+    # (two frames a level), so the canonical comparison is the one that stops.  Each is
+    # refused as not I-JSON, the finding the Node checker reports for the same document,
+    # and the command prints the envelope, not a traceback.
+    path = tmp_path / "knowledge-linkset"
+    path.write_bytes(('{"linkset":' + "[" * depth + "]" * depth + "}\n").encode("ascii"))
+    assert path.stat().st_size < 1048576
+    result, reads = wellknown.validate(str(path), level=level)
+    assert reads == 1
+    assert codes(result) == ["AGSC-E201"]
+    assert result["findings"][0]["message"] == "not I-JSON: nesting too deep"
+    assert result["status"] == "fail"
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(["validate-wellknown", str(path), "--level", str(level), "--json"],
+                    out=out, err=err)
+    assert code == 1
+    printed = json.loads(out.getvalue())
+    assert printed["schema"] == "agsc.diagnostics.v1"
+    assert [one["code"] for one in printed["findings"]] == ["AGSC-E201"]
+    assert "Traceback" not in err.getvalue()
 
 
 def test_a_target_outside_the_site_root_is_e902(tmp_path):

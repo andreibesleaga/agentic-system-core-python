@@ -54,6 +54,8 @@ specification):
 - CI: the engine's restricted-publisher scenario, in which both checkers flag a restricted
   node without an access link, runs on every leg with this package beside the engine, next
   to the port implementer's scenarios; a skipped scenario fails the leg.
+- The cross-runner proof reads the specification version of a release, not only of a
+  candidate, and two area handlers assert what the engine's assert.
 
 ### Fixed
 
@@ -64,3 +66,7 @@ specification):
   engine derives from the vocabulary's `owl:versionIRI` (AGSC-05-09, AGSC-05-25); it named
   the pre-release `/ns/1.0.0-draft.1/`. A test compares it with the engine's vocabulary
   when the engine is beside this repository.
+- A verb outside the sixteen of the specification is refused with `AGSC-E001` when no
+  engine is installed (it was answered with the install sentence alone).
+- A discovery document nested too deep for the reader is reported as `AGSC-E201`, as the
+  Node checker reports it (it was a traceback).

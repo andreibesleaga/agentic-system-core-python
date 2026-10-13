@@ -323,7 +323,12 @@ def run(vector):
     elif "wellknown" in given:
         document = given["wellknown"]
         level = expected.get("level", 0)
-        handled.add("level")
+        if have("level"):
+            # The case states the Level its documents are the form of: the Level-0
+            # form, which is what the checks below judge.
+            items.append(("level", level == 0,
+                          "the case states Level %s; its documents are the Level-0 form"
+                          % shown(level)))
         errors, _, _ = _check(document, level)
         if have("valid"):
             items.append(("valid", (errors == []) == expected["valid"], shown(errors)))
