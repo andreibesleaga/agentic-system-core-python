@@ -197,8 +197,9 @@ def linkset(base, level=2, artefacts=None, facts=None, peers=(), restricted=Fals
     ``artefacts`` maps a route (``/graph.jsonld`` …) to its bytes; ``facts`` holds
     ``spec_version``, ``generated_at``, ``counts``, ``bundle_hash``,
     ``bundle_version`` and ``ledger_head``.  Level 0 omits every digest and every
-    ``agsc-*`` attribute (AGSC-06-08a); a restricted node omits the four of
-    AGSC-11-20, the ledger link and the digest of every target it does not serve
+    ``agsc-*`` attribute (AGSC-06-08a); a restricted node carries
+    ``agsc-generated-at`` and ``agsc-spec-version``, omits the four content facts
+    of AGSC-11-20, the ledger link and the digest of every target it does not serve
     unauthenticated, and carries ``agsc-visibility`` and, given ``access``, the one
     ``rel#access`` link that names where a reader obtains credentials.
     """
@@ -217,10 +218,10 @@ def linkset(base, level=2, artefacts=None, facts=None, peers=(), restricted=Fals
         return link
 
     described = {}
-    if full:
+    if full or restricted:
         described = {"agsc-generated-at": facts.get("generated_at"),
                      "agsc-spec-version": facts.get("spec_version")}
-        if not restricted:
+        if full and not restricted:
             described.update({"agsc-bundle-hash": facts.get("bundle_hash"),
                               "agsc-bundle-version": facts.get("bundle_version"),
                               "agsc-counts": facts.get("counts")})

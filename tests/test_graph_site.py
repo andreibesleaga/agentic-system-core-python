@@ -183,6 +183,14 @@ def test_sitemap_robots_and_linkset_writers():
                                             "User-agent: *\nAllow: /\n")
     level0 = discovery.linkset("https://a.example/", level=0)
     assert "digest" not in discovery.linkset_bytes(level0)
+    restricted_level0 = discovery.linkset(
+        "https://a.example/", level=0, restricted=True,
+        facts={"generated_at": "T", "spec_version": "S"},
+        access="https://a.example/access/")
+    restricted_graph = restricted_level0["linkset"][0]["describedby"][0]
+    assert restricted_graph["agsc-generated-at"] == ["T"]
+    assert restricted_graph["agsc-spec-version"] == ["S"]
+    assert "agsc-counts" not in restricted_graph
     restricted = discovery.linkset("https://a.example/", level=2, restricted=True,
                                    facts={"generated_at": "T", "spec_version": "S"},
                                    access="https://a.example/access/")
