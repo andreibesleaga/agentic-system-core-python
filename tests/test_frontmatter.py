@@ -259,3 +259,17 @@ def test_adoption_defaults_and_edge_cases():
     assert frontmatter.slugify("!!!") == "note"
     _, output, _ = frontmatter.adopt("content/concepts/kept.md", "# Kept\n")
     assert "aliases" not in output
+
+
+@pytest.mark.parametrize("stem, expected", [
+    ("My Notes", "my-notes"),
+    ("\u00dcn\u00efc\u00f4de", "n-c-de"),
+    # Only A to Z are lower-cased: the capital I with dot above becomes a hyphen.
+    ("\u0130stanbul", "stanbul"),
+    ("Kad\u0131k\u00f6y \u0130zmir", "kad-k-y-zmir"),
+    # NFC turns the Kelvin sign into the letter K before the lower-casing.
+    ("\u212aelvin", "kelvin"),
+    ("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"),
+])
+def test_slugify_lower_cases_a_to_z_only(stem, expected):
+    assert frontmatter.slugify(stem) == expected

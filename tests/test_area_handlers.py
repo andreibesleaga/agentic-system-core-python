@@ -66,6 +66,31 @@ def test_every_scalar_expectation_flipped_fails(path):
             assert AREA_RUNNERS[data["area"]](flipped)["status"] == "fail", key
 
 
+def test_the_level_the_level_zero_case_states_is_asserted():
+    # The case states the Level its documents are the form of; a case stating another
+    # Level fails, as it does in the engine's runner.
+    data = vector("disc-0004")
+    assert AREA_RUNNERS["discovery"](data)["status"] == "pass"
+    mutated = copy.deepcopy(data)
+    mutated["expected"]["level"] = data["expected"]["level"] + 1
+    result = AREA_RUNNERS["discovery"](mutated)
+    assert result["status"] == "fail", result
+    assert "level" in result["detail"]
+
+
+def test_the_portable_pattern_case_asserts_lookahead_in_either_polarity():
+    # `lookahead` is asserted at the value the case states: a case that states the
+    # other value fails.
+    data = vector("slug-0006")
+    assert data["expected"]["lookahead"] is False
+    assert AREA_RUNNERS["slug"](data)["status"] == "pass"
+    mutated = copy.deepcopy(data)
+    mutated["expected"]["lookahead"] = True
+    result = AREA_RUNNERS["slug"](mutated)
+    assert result["status"] == "fail", result
+    assert "lookahead" in result["detail"]
+
+
 @pytest.mark.parametrize("area", ["build", "discovery", "frontmatter", "graph"])
 def test_an_input_shape_no_handler_knows_fails(area):
     result = AREA_RUNNERS[area]({"expected": {}, "input": {"zz": 1}})

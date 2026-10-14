@@ -72,7 +72,10 @@ _SLUG = re.compile(SLUG_PATTERN)
 _LINK_TARGET = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*(?:#[a-z0-9]+(?:-[a-z0-9]+)*)?$")
 _DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 _INSTANT = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
-_ACTOR = re.compile(r"^(?:human:[a-z0-9][a-z0-9._-]*|process:[a-z0-9][a-z0-9._-]*|"
+#: AGSC-02-09: human:<id>, process:<id>, process:<id>/<version> (the ledger's trailing
+#: build entry, AGSC-08-20a) or <producer>/<version>; the engine's item schema pattern.
+_ACTOR = re.compile(r"^(?:human:[a-z0-9][a-z0-9._-]*|"
+                    r"process:[a-z0-9][a-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._+-]*)?|"
                     r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._+-]*)$")
 _HUMAN = re.compile(r"^human:[a-z0-9][a-z0-9._-]*$")
 _TAG = re.compile(r"^[a-z0-9][a-z0-9-]*$")

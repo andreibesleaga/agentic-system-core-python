@@ -26,7 +26,8 @@ media type and order; AGSC-E202 for a missing REQUIRED attribute; AGSC-E204 for
 a malformed digest; AGSC-E209 for a relation outside AGSC-06-10/06-35;
 AGSC-E506 (a warning) for a relation or a target attribute of a newer MINOR,
 which is ignored (AGSC-00-21, AGSC-09-93);
-AGSC-E210 for a surface declaration that disagrees with the node; AGSC-E601 for
+AGSC-E210 for a surface declaration that disagrees with the node, and for a
+restricted node's second rel#access link (one with none is AGSC-E202); AGSC-E601 for
 non-canonical bytes at Level 2 and above; AGSC-E901/E902/E904/E905/E907 for
 input and transport faults.  A missing response header or header value is
 AGSC-E202 and one the rules forbid is AGSC-E201.
@@ -200,7 +201,12 @@ def load(target, allow_network=False, fetcher=None, dev=False):
 
 
 def _media_type_state(headers):
-    """Whether the served media type and profile satisfy AGSC-06-07."""
+    """Whether the served media type and profile satisfy AGSC-06-07.
+
+    The media type is ``application/linkset+json`` in every case, and the profile URI
+    rides on its ``profile`` parameter or on a ``Link: ...; rel="profile"`` header: the
+    header replaces only the parameter, never the media type (AGSC-09-93).
+    """
     if headers is None:
         return {"checked": False}
     content_type = str(headers.get("content-type", ""))
@@ -225,7 +231,23 @@ def _media_type_state(headers):
             names = (relation.group(1) or relation.group(2)).split()
             if "profile" in names:
                 by_link = True
-    return {"checked": True, "essence": essence, "ok": by_parameter or by_link}
+    return {"checked": True, "essence": essence, "profile": by_parameter or by_link,
+            "ok": essence == MEDIA_TYPE and (by_parameter or by_link)}
+
+
+def _media_type_shortfall(media):
+    """The one message for a media type that fails AGSC-06-07, or None when it holds."""
+    if not media["checked"] or media["ok"]:
+        return None
+    if media["essence"] != MEDIA_TYPE and media["profile"]:
+        return ('media type "%s" is not %s; the profile Link header replaces only the profile '
+                'parameter, never the media type (AGSC-06-07)' % (media["essence"], MEDIA_TYPE))
+    if media["essence"] != MEDIA_TYPE:
+        return ('media type "%s" is not %s and no profile is carried: need %s with '
+                'profile="%s", or %s with a Link header rel="profile" (AGSC-06-07)'
+                % (media["essence"], MEDIA_TYPE, MEDIA_TYPE, PROFILE_URI, MEDIA_TYPE))
+    return ('media type %s carries no profile: need profile="%s", or a Link header with '
+            'rel="profile" (AGSC-06-07)' % (MEDIA_TYPE, PROFILE_URI))
 
 
 def _header_values(headers, name):
@@ -303,15 +325,9 @@ def check(source, level, findings, dev=False):
     def report(code, message, severity="error"):
         findings.append(finding(code, source.name, message, severity=severity))
 
-    media = _media_type_state(source.headers)
-    if media["checked"] and not media["ok"]:
-        report(
-            "AGSC-E201",
-            'media type is "%s" and no profile is carried: need %s with profile="%s", or a Link '
-            'header with rel="profile" (AGSC-06-07)' % (media["essence"], MEDIA_TYPE, PROFILE_URI),
-        )
-    if media["checked"] and media["ok"] and media["essence"] != MEDIA_TYPE:
-        report("AGSC-E201", 'media type "%s" is not %s (AGSC-06-07)' % (media["essence"], MEDIA_TYPE))
+    shortfall = _media_type_shortfall(_media_type_state(source.headers))
+    if shortfall is not None:
+        report("AGSC-E201", shortfall)
 
     try:
         text = source.data.decode("utf-8")
@@ -323,11 +339,20 @@ def check(source, level, findings, dev=False):
     except ValueError as error:
         report("AGSC-E201", "not I-JSON: %s" % error)
         return None
-    if level >= 2 and text != canonicalize_raw(document) + "\n":
-        report(
-            "AGSC-E601",
-            "document is not JCS-canonical with exactly one trailing LF (AGSC-04-04, AGSC-06-08)",
-        )
+    if level >= 2:
+        try:
+            canonical = canonicalize_raw(document) + "\n"
+        except RecursionError:
+            # The canonical form is written recursively, deeper than the reader
+            # reads; a document the reader held but the writer cannot is refused
+            # the same way, with the finding the Node checker gives.
+            report("AGSC-E201", "not I-JSON: nesting too deep")
+            return None
+        if text != canonical:
+            report(
+                "AGSC-E601",
+                "document is not JCS-canonical with exactly one trailing LF (AGSC-04-04, AGSC-06-08)",
+            )
     if not isinstance(document, dict):
         report("AGSC-E201", "document is not a JSON object")
         return None
@@ -401,6 +426,17 @@ def check(source, level, findings, dev=False):
                        % name)
         if isinstance(ledger, list) and ledger:
             report("AGSC-E210", "a restricted node publishes no rel#ledger link (AGSC-11-20)")
+        # AGSC-11-20: exactly one rel#access link, at every Level (a restricted node
+        # asserts conformance for its Level-0 view).  A value that is not a non-empty
+        # array is already AGSC-E201 (RFC 9264 section 4.2.2), so only absence and a
+        # count above one are judged here, each once for the relation.
+        access = context.get(REL_BASE + "access")
+        where = ("a restricted node carries exactly one rel#access link, naming where a "
+                 "reader obtains credentials")
+        if REL_BASE + "access" not in context:
+            report("AGSC-E202", where + "; this one carries none (AGSC-11-20)")
+        elif isinstance(access, list) and len(access) > 1:
+            report("AGSC-E210", where + "; this one carries %d (AGSC-11-20)" % len(access))
     elif level >= 2 and not (isinstance(ledger, list) and ledger):
         # AGSC-10-04 / AGSC-09-93: the derived ledger is part of Level 2, so a public
         # node claiming it publishes /ledger.jsonl and links it.

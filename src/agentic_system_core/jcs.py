@@ -393,7 +393,13 @@ def parse_ijson(text):
 
     if text[:1] == "﻿":
         fail("byte order mark")
-    value = read_value()
+    try:
+        value = read_value()
+    except RecursionError:
+        # The reader is recursive, one frame per level of nesting; a text nested
+        # deeper than the interpreter holds is outside what this reader reads and
+        # is refused like any other text outside I-JSON.
+        fail("nesting too deep")
     skip_whitespace()
     if state["i"] != len(text):
         fail("trailing characters")

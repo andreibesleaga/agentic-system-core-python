@@ -1,9 +1,11 @@
 """The discovery-file checker, over the fixture set and the two sites' files."""
 
+import io
 import json
 
 import pytest
 
+from agentic_system_core import cli
 from agentic_system_core import wellknown
 from agentic_system_core.net import TransportError
 from conftest import SITE_DOCUMENTS, WELLKNOWN, case
@@ -112,6 +114,33 @@ def test_a_file_over_one_mebibyte_is_e904(tmp_path):
     big.write_bytes(b"x" * (1048576 + 1))
     result, _ = wellknown.validate(str(big))
     assert codes(result) == ["AGSC-E904"]
+
+
+@pytest.mark.parametrize("depth,level", [(5000, 0), (5000, 2), (700, 2)],
+                         ids=["reader-level-0", "reader-level-2", "canonical-form-level-2"])
+def test_a_document_nested_too_deep_for_the_checker_is_e201_not_a_traceback(tmp_path, depth, level):
+    # Well under the one-mebibyte cap.  5,000 levels is far above any interpreter's
+    # default recursion limit, so the reader refuses the text at every Level; 700 levels
+    # is read (one frame a level) but not written back in canonical form at Level 2
+    # (two frames a level), so the canonical comparison is the one that stops.  Each is
+    # refused as not I-JSON, the finding the Node checker reports for the same document,
+    # and the command prints the envelope, not a traceback.
+    path = tmp_path / "knowledge-linkset"
+    path.write_bytes(('{"linkset":' + "[" * depth + "]" * depth + "}\n").encode("ascii"))
+    assert path.stat().st_size < 1048576
+    result, reads = wellknown.validate(str(path), level=level)
+    assert reads == 1
+    assert codes(result) == ["AGSC-E201"]
+    assert result["findings"][0]["message"] == "not I-JSON: nesting too deep"
+    assert result["status"] == "fail"
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(["validate-wellknown", str(path), "--level", str(level), "--json"],
+                    out=out, err=err)
+    assert code == 1
+    printed = json.loads(out.getvalue())
+    assert printed["schema"] == "agsc.diagnostics.v1"
+    assert [one["code"] for one in printed["findings"]] == ["AGSC-E201"]
+    assert "Traceback" not in err.getvalue()
 
 
 def test_a_target_outside_the_site_root_is_e902(tmp_path):
@@ -266,6 +295,57 @@ def test_a_profile_link_header_on_the_wrong_media_type_is_still_reported():
     assert "is not application/linkset+json" in result["findings"][0]["message"]
 
 
+PROFILE_LINK = ('<https://w3id.org/agentic-system-core/profile/agentic-knowledge>; '
+                'rel="profile"')
+
+
+def test_the_media_type_is_required_even_when_the_profile_link_header_is_sent():
+    # AGSC-06-07, AGSC-09-93: the Link header replaces only the profile parameter,
+    # never the media type.
+    state = wellknown._media_type_state({"content-type": "application/json", "link": PROFILE_LINK})
+    assert state["ok"] is False
+    assert state["essence"] == "application/json"
+    assert wellknown._media_type_state({
+        "content-type": 'application/json; profile="https://w3id.org/agentic-system-core'
+                        '/profile/agentic-knowledge"'})["ok"] is False
+    assert wellknown._media_type_state({"content-type": "application/linkset+json",
+                                        "link": PROFILE_LINK})["ok"] is True
+
+
+def _media_findings(content_type, link=None):
+    def fetcher(href, dev=False, cap=None):
+        headers = dict(WELL_SERVED, **{"content-type": content_type})
+        if link is not None:
+            headers["link"] = link
+        with open(case("good"), "rb") as handle:
+            return href, headers, handle.read()
+
+    result, _ = wellknown.validate("https://node.example/.well-known/knowledge-linkset",
+                                   allow_network=True, fetcher=fetcher)
+    return [one for one in result["findings"] if "(AGSC-06-07)" in one["message"]]
+
+
+def test_one_media_type_finding_says_which_half_is_missing():
+    found = _media_findings("application/json", PROFILE_LINK)
+    assert [one["code"] for one in found] == ["AGSC-E201"]
+    assert found[0]["message"].startswith(
+        'media type "application/json" is not application/linkset+json; the profile Link '
+        'header replaces only the profile parameter, never the media type')
+    for content_type in ("application/json",
+                         'application/json; profile="https://w3id.org/agentic-system-core/'
+                         'profile/agentic-knowledge"'):
+        found = _media_findings(content_type)
+        assert [one["code"] for one in found] == ["AGSC-E201"]
+        assert found[0]["message"].startswith(
+            'media type "application/json" is not application/linkset+json and no profile is '
+            'carried: ')
+    found = _media_findings("application/linkset+json")
+    assert [one["code"] for one in found] == ["AGSC-E201"]
+    assert found[0]["message"].startswith("media type application/linkset+json carries no profile: ")
+    assert found[0]["message"].endswith('or a Link header with rel="profile" (AGSC-06-07)')
+    assert _media_findings("application/linkset+json", PROFILE_LINK) == []
+
+
 def test_an_extra_top_member_with_no_usable_linkset_stops_there(tmp_path):
     path = tmp_path / "knowledge-linkset"
     path.write_bytes(b'{"extra":1,"linkset":{}}\n')
@@ -328,8 +408,8 @@ def test_the_origin_judged_is_the_one_finally_read_after_redirects():
 # every same-origin public artefact it fetches, and checks the rules on cross-origin
 # reading (AGSC-11-03) and caching (AGSC-11-05): a missing header or value is AGSC-E202,
 # a forbidden one AGSC-E201; errors at Level 2 and above, warnings below.  Until then
-# only the media type was read, so a node that served none of these headers passed
-# (verification finding T1, the checker half).  The engine's tools/validate-wellknown
+# only the media type was read, so a node that served none of these headers passed.
+# The engine's tools/validate-wellknown
 # does the same.
 
 GOOD_URL = "https://node.example/.well-known/knowledge-linkset"
@@ -386,7 +466,7 @@ def test_a_node_served_with_the_full_header_set_passes_at_level_2():
 
 
 def test_targets_are_fetched_with_the_federation_cap_and_the_document_with_one_mebibyte():
-    # C17 (b), the Python half: a target is held to federation.max_bytes' default.
+    # A target is held to federation.max_bytes' default (AGSC-11-01).
     from agentic_system_core import net
     fetcher = _serving()
     wellknown.validate(GOOD_URL, level=2, allow_network=True, fetcher=fetcher)
@@ -469,7 +549,7 @@ def test_a_restricted_node_is_asked_the_cross_origin_pair_on_its_document_alone(
                        "type": "text/plain"}],
         "anchor": "https://node.example/",
         "describedby": [{"agsc-generated-at": ["2026-01-01T00:00:00Z"],
-                         "agsc-spec-version": ["1.0.0-rc.7"], "agsc-visibility": ["restricted"],
+                         "agsc-spec-version": ["1.0.0"], "agsc-visibility": ["restricted"],
                          "digest": [digest(graph)], "href": "https://node.example/graph.jsonld",
                          "type": "application/ld+json"}],
         "https://w3id.org/agentic-system-core/rel#access": [
@@ -496,3 +576,72 @@ def test_a_restricted_node_is_asked_the_cross_origin_pair_on_its_document_alone(
                                    fetcher=_serving(bare, served))
     hits = _about(result, "AGSC-11-03")
     assert len(hits) == 2 and all("knowledge-linkset" in one["message"] for one in hits), hits
+
+
+#: AGSC-11-20: a restricted node carries exactly one rel#access link.
+_ACCESS_REL = "https://w3id.org/agentic-system-core/rel#access"
+
+
+def _level0_view(access=(), restricted=True):
+    """The Level-0 view of a node at node.example, with the given access-link targets."""
+    described = {"href": "https://node.example/graph.jsonld", "type": "application/ld+json"}
+    if restricted:
+        described.update({"agsc-generated-at": ["2026-09-16T00:00:00Z"],
+                          "agsc-spec-version": ["1.0.0"], "agsc-visibility": ["restricted"]})
+    context = {
+        "alternate": [{"href": "https://node.example/llms.txt", "type": "text/plain"}],
+        "anchor": "https://node.example/",
+        "describedby": [described],
+        "license": [{"href": "https://node.example/legal/"}],
+    }
+    if access:
+        context[_ACCESS_REL] = [{"agsc-access": ["credential"], "href": href} for href in access]
+    return {"linkset": [context]}
+
+
+def _access_findings(document, level=0):
+    findings = []
+    wellknown.check(wellknown.from_value(document), level, findings)
+    return findings, [one for one in findings if "rel#access" in one["message"]]
+
+
+def test_a_restricted_node_with_no_access_link_is_e202():
+    findings, about = _access_findings(_level0_view())
+    assert [(one["code"], one["severity"]) for one in about] == [("AGSC-E202", "error")]
+    assert "exactly one" in about[0]["message"] and "AGSC-11-20" in about[0]["message"]
+    assert findings == about, findings
+
+
+def test_a_restricted_node_with_two_access_links_is_e210():
+    findings, about = _access_findings(_level0_view(
+        access=("https://node.example/access/", "https://node.example/access/other/")))
+    assert [(one["code"], one["severity"]) for one in about] == [("AGSC-E210", "error")]
+    assert "exactly one" in about[0]["message"] and " 2 " in about[0]["message"]
+    assert findings == about, findings
+
+
+def test_a_restricted_node_with_one_access_link_passes():
+    findings, _ = _access_findings(_level0_view(access=("https://node.example/access/",)))
+    assert findings == []
+
+
+def test_the_access_link_is_asked_at_every_level_and_never_of_a_public_node():
+    for level in (1, 2, 3):
+        _, about = _access_findings(_level0_view(), level)
+        assert [one["code"] for one in about] == ["AGSC-E202"], level
+    findings, _ = _access_findings(_level0_view(restricted=False))
+    assert findings == []
+
+
+def test_the_two_checkers_word_the_access_findings_alike():
+    # The same message as the Node tool's, so an operator reads one text whichever
+    # checker ran (AGSC-09-93).
+    _, missing = _access_findings(_level0_view())
+    _, repeated = _access_findings(_level0_view(
+        access=("https://node.example/access/", "https://node.example/access/other/")))
+    assert missing[0]["message"] == (
+        "a restricted node carries exactly one rel#access link, naming where a reader "
+        "obtains credentials; this one carries none (AGSC-11-20)")
+    assert repeated[0]["message"] == (
+        "a restricted node carries exactly one rel#access link, naming where a reader "
+        "obtains credentials; this one carries 2 (AGSC-11-20)")

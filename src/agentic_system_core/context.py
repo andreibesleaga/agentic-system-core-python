@@ -24,7 +24,7 @@ from .rdf import (ASC, DCTERMS, IRI, PREFIXES, PROV, RDF_TYPE, RDFS, SCHEMA, SKO
                   Literal)
 
 #: AGSC-05-09: the specification's persistent versioned context URL.
-ONTOLOGY_VERSION = "1.0.0-draft.1"
+ONTOLOGY_VERSION = "1.0.0"
 CONTEXT_URL = "https://w3id.org/agentic-system-core/ns/%s/context.jsonld" % ONTOLOGY_VERSION
 
 _NAMESPACES = dict(PREFIXES)

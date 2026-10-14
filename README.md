@@ -23,22 +23,23 @@ an integrity digest on every artefact link of its discovery document, a typed gr
 pinned by conformance vectors, a person on every merge — directly, or by a standing
 rule that person recorded — and a starting harness of seven kinds of file out of the same files, with no
 server. This package is the Python reader and checker of such nodes; maintainers read
-[docs/MAINTAINING.md](docs/MAINTAINING.md).
+[docs/MAINTAINING.md](https://github.com/andreibesleaga/agentic-system-core-python/blob/main/docs/MAINTAINING.md).
 
 ## Install
 
 ```
-pip install --pre agentic-system-core
+pip install agentic-system-core
 ```
 
-Until `1.0.0` is released, every version of this package is a release candidate
-(`1.0.0rc7` today), and pip installs a release candidate only when asked: use
-`--pre`, or name the version, `pip install "agentic-system-core==1.0.0rc7"`. The
-two `0.0.x` versions on PyPI only reserved the name, contain no code and are
-yanked, so a plain `pip install agentic-system-core` finds nothing to install.
+This installs the latest release. A release candidate of a later version is
+installed only when asked for, with `--pre` or by naming its version. The two
+`0.0.x` versions on PyPI only reserved the name, contain no code and are yanked,
+so pip never picks them.
 
-Python 3.9 or newer. To forward the other verbs you also need Node 22.13 or
-newer and the npm package:
+Python 3.9 or newer; every release is tested on 3.9, 3.13 and 3.14. Python 3.9
+reached its end of life in October 2025 and is still supported by this release
+(1.0.0). To forward the other verbs you also need Node 22.13 or newer and the
+npm package:
 
 ```
 npm install -g agentic-system-core
@@ -75,8 +76,9 @@ above the document must also be canonical bytes, every artefact link must carry
 a digest, the graph link must carry its five bundle facts, and the ledger must be
 linked with its head. A node that declares itself `restricted` must instead omit
 its content facts, its ledger link and the digest of every target it does not
-serve openly (AGSC-11-20). A document that declares a newer MINOR of the same
-MAJOR may use relations and attributes this version does not define: they are
+serve openly, and must carry exactly one `rel#access` link naming where a reader
+obtains credentials (AGSC-11-20). A document that declares a newer MINOR of the
+same MAJOR may use relations and attributes this version does not define: they are
 ignored with the warning `AGSC-E506`, never reported as errors; a document of
 another MAJOR gets no such tolerance (AGSC-00-21, AGSC-09-93).
 
@@ -122,6 +124,13 @@ grammars, the file encoding, the canonical member order, and the resolution of
 every rule identifier and every error code against the specification. An empty
 set is a failure, not a clean run.
 
+Both verbs need a vector directory: this package ships no vector set of its own.
+The vectors are in the npm package `agentic-system-core`, in its `tests/vectors/`
+folder (after `npm install -g agentic-system-core`, `npm root -g` prints the folder
+that holds the package), and in the same folder of the engine repository,
+<https://github.com/andreibesleaga/agentic-system-core>. For example, from a clone of
+the engine: `agsc run-vectors tests/vectors`.
+
 Resolving identifiers needs the specification. This package ships a small index
 of it — the rule identifiers, the registered error codes and the declared
 version — derived from `spec/` by command; `--spec <dir>` derives the same index
@@ -139,7 +148,7 @@ rule text of the specification alone, in the standard library:
 | `jcs` | RFC 8785 canonical JSON with NFC before sorting |
 | `links` | the fourteen Link keys and their inverses, the cycle and cluster-tree checks, heading anchors, and inline-link resolution over a small CommonMark 0.31.2 scanner (headings and inline links only, outside code; its subset is written down in `agentic_system_core/markdown.py`) |
 | `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, and the JSON-LD context of AGSC-06-32 with the compaction it round-trips |
-| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt`, the content version and the staleness comparison; five vectors of these seven areas need a whole build or the publisher's writers (`build-0015`, `build-0017`, `disc-0018`, `graph-0027`, `graph-0028`) and are reported as not run, by name |
+| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt`, the content version and the staleness comparison; fourteen vectors of these seven areas need a whole build or the publisher's writers (`build-0015`, `build-0017`, `build-0020` to `build-0028`, `disc-0018`, `graph-0027`, `graph-0028`) and are reported as not run, by name |
 | `discovery` | `/llms.txt` and `/llms-full.txt` byte for byte, reachability, the sitemap and robots facts, the link-set writer, and the discovery-document checks including the restricted-node rule of AGSC-11-20 |
 
 The other areas need a Bundle build, the engine's composition or governance
@@ -191,9 +200,13 @@ arguments and never through a shell.
 
 ## Version
 
-The specification version is `1.0.0-rc.7`, a SemVer pre-release. Python packages
-use PEP 440, which spells the same pre-release `1.0.0rc7`, and that is the
-version on PyPI. `agsc --version` prints both.
+The specification version is `1.0.0`. Python packages use PEP 440, which spells
+a release the same way as SemVer, so the version on PyPI is `1.0.0` too; a
+release candidate is spelled differently: SemVer's `X.Y.Z-rc.N` is PEP 440's
+`X.Y.ZrcN`.
+`agsc --version` prints the package version and the specification version.
+What changed in each version, and what the checker may now report, is in the
+[change log](https://github.com/andreibesleaga/agentic-system-core-python/blob/main/CHANGELOG.md).
 
 ## The vector copies in this repository
 

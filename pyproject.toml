@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentic-system-core"
-version = "1.0.0rc7"
+version = "1.0.0"
 description = "Two standalone checkers and a reading API for AgenticSystemCore knowledge nodes, in pure Python, with one agsc command that hands every other verb to the Node engine."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -13,7 +13,7 @@ license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Andrei N. Besleaga" }]
 keywords = ["agentic", "knowledge", "linkset", "discovery", "conformance", "rfc9264", "rfc8785"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
@@ -24,6 +24,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Quality Assurance",
     "Topic :: Text Processing :: Markup",
 ]
@@ -34,6 +35,7 @@ Homepage = "https://agenticsystemcore.com"
 Source = "https://github.com/andreibesleaga/agentic-system-core-python"
 Specification = "https://agenticsystemcore.com/specs/agentic-knowledge/"
 "Bug Tracker" = "https://github.com/andreibesleaga/agentic-system-core-python/issues"
+Changelog = "https://github.com/andreibesleaga/agentic-system-core-python/blob/main/CHANGELOG.md"
 
 [project.scripts]
 agsc = "agentic_system_core.cli:console_main"

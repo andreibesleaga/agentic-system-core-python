@@ -190,7 +190,8 @@ def digest(data):
     return "sha-256=:%s:" % base64.b64encode(hashlib.sha256(raw).digest()).decode("ascii")
 
 
-def linkset(base, level=2, artefacts=None, facts=None, peers=(), restricted=False):
+def linkset(base, level=2, artefacts=None, facts=None, peers=(), restricted=False,
+            access=None):
     """The discovery document for one node, as a value.
 
     ``artefacts`` maps a route (``/graph.jsonld`` …) to its bytes; ``facts`` holds
@@ -198,7 +199,8 @@ def linkset(base, level=2, artefacts=None, facts=None, peers=(), restricted=Fals
     ``bundle_version`` and ``ledger_head``.  Level 0 omits every digest and every
     ``agsc-*`` attribute (AGSC-06-08a); a restricted node omits the four of
     AGSC-11-20, the ledger link and the digest of every target it does not serve
-    unauthenticated, and carries ``agsc-visibility``.
+    unauthenticated, and carries ``agsc-visibility`` and, given ``access``, the one
+    ``rel#access`` link that names where a reader obtains credentials.
     """
     root = _base(base)
     artefacts = artefacts or {}
@@ -240,6 +242,8 @@ def linkset(base, level=2, artefacts=None, facts=None, peers=(), restricted=Fals
             "href": root + "/ledger.jsonl", "type": "application/jsonl"}]
     if peers:
         context[REL_BASE + "peer"] = [{"href": one} for one in sorted(peers)]
+    if restricted and access is not None:
+        context[REL_BASE + "access"] = [{"agsc-access": ["credential"], "href": access}]
     return {"linkset": [context]}
 
 

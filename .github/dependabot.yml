@@ -1,0 +1,16 @@
+# Update pull requests for the GitHub Actions the workflows pin by commit SHA: once a month,
+# all in one pull request, so a pinned action does not stay behind its security fixes. The
+# package has no runtime dependency (pyproject.toml: `dependencies = []`). The test and lint
+# tools are pinned on the workflows' command lines, and the build requirement (setuptools,
+# pinned per Python in pyproject.toml, with an older release kept for Python 3.9) is raised
+# by hand.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns:
+          - '*'

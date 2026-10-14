@@ -13,9 +13,8 @@ Node tool applies (AGSC-11-07/08/09) apply here:
   request to the last byte (AGSC-11-10(e, f));
 * a cap of one mebibyte on a discovery document and of ``federation.max_bytes``'
   default on any other artefact; a fetch aborted at a cap or at the deadline is
-  AGSC-E907.  Until 2026-10-06 (verification finding C17, the Python half) the
-  timeout was an idle one a slow server could keep resetting, a response over the
-  cap was AGSC-E904 and every target was held to one mebibyte.
+  AGSC-E907.  The deadline is not an idle timeout, which a slow server could keep
+  resetting.
 
 The address classification is a pure function and is tested directly; the few
 lines that open a socket are the only ones this package cannot exercise without

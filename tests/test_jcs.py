@@ -141,6 +141,17 @@ def test_strict_reader_refuses(text):
         jcs.parse_ijson(text)
 
 
+@pytest.mark.parametrize("text", [
+    "[" * 5000 + "]" * 5000,
+    '{"a":' * 5000 + "1" + "}" * 5000,
+], ids=["arrays", "objects"])
+def test_strict_reader_refuses_a_text_nested_too_deep_as_not_ijson(text):
+    # The reader is recursive; a text it cannot hold is refused like any other text
+    # outside I-JSON, never as an interpreter error.
+    with pytest.raises(ValueError, match="nesting too deep"):
+        jcs.parse_ijson(text)
+
+
 def test_strict_reader_numbers():
     assert jcs.parse_ijson("0") == 0
     assert jcs.parse_ijson("-12") == -12

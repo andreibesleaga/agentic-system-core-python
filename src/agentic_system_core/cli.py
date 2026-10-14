@@ -4,13 +4,14 @@ Three verbs run here, in Python, with no Node and no network:
 
     agsc validate-wellknown <file> [--level 0|1|2|3] [--peer <file>] [--json] [--dev]
                                    [--allow-network]
-    agsc validate-vectors [<dir>] [--json] [--quiet] [--spec <dir>] [--root <dir>]
-    agsc run-vectors [<dir>] [--json] [--level 0|1|2|3] [--pending <file>]
+    agsc validate-vectors <dir> [--json] [--quiet] [--spec <dir>] [--root <dir>]
+    agsc run-vectors <dir> [--json] [--level 0|1|2|3] [--pending <file>]
 
 ``agsc --version`` prints the version.  Every other verb belongs to the engine:
 if the Node package's ``agsc`` is on the PATH, the call is handed to it exactly
 as it was typed and its exit code is returned; if it is not, the command stops
-with one sentence saying what to install.
+with one sentence saying what to install, and a verb that is not one of the
+engine's sixteen is refused with ``AGSC-E001`` (AGSC-09-07).
 
 Exit codes are the specification's: 0 pass, 1 fail, 2 usage.
 
@@ -32,6 +33,10 @@ NODE_REQUIREMENT = "Node 22.13 or newer"
 
 NATIVE_VERBS = ("validate-wellknown", "validate-vectors", "run-vectors")
 
+#: The sixteen verbs of the engine (AGSC-09-07), the ones this command forwards.
+ENGINE_VERBS = ("init", "lint", "build", "verify", "ci", "export", "import", "compose",
+                "propose", "review", "refresh", "skills", "mcp", "run", "trace", "conform")
+
 USAGE = """agsc <verb> [options]
 
 Runs natively, with no Node and no network:
@@ -39,9 +44,9 @@ Runs natively, with no Node and no network:
                             [--allow-network]
       Check one discovery document served at /.well-known/knowledge-linkset.
       A file is read always; a URL is read only with --allow-network.
-  validate-vectors [<dir>] [--json] [--quiet] [--spec <dir>] [--root <dir>]
+  validate-vectors <dir> [--json] [--quiet] [--spec <dir>] [--root <dir>]
       Check a conformance-vector set against the file-format rules.
-  run-vectors [<dir>] [--json] [--level 0|1|2|3] [--pending <file>]
+  run-vectors <dir> [--json] [--level 0|1|2|3] [--pending <file>]
       Run the vectors of the areas this package implements and name every area
       it does not run.
 
@@ -288,9 +293,18 @@ def find_node_cli(path_value=None, own=None):
 
 
 def forward(argv, err, runner=subprocess.run, finder=find_node_cli):
-    """Hand a verb to the Node engine verbatim, or explain what to install."""
+    """Hand a verb to the Node engine verbatim, or explain what to install.
+
+    With no engine found, one of the sixteen gets the install sentence; any other
+    verb is refused with AGSC-E001 and exit 2, as AGSC-09-07 asks of a distribution
+    that is not a full engine.  With an engine found, every verb goes to it as typed
+    and the engine answers an unknown one itself.
+    """
     node_cli = finder()
     if node_cli is None:
+        if argv[0] not in ENGINE_VERBS:
+            _write(err, 'agsc: AGSC-E001 unknown verb "%s"\n' % argv[0])
+            return EXIT_USAGE
         _write(err,
                "This verb belongs to the engine: install the npm package %s "
                "(it needs %s) and run it again.\n" % (NPM_PACKAGE, NODE_REQUIREMENT))

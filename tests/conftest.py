@@ -18,7 +18,7 @@ ENGINE = NEIGHBOURS / "agentic-system-core"
 
 #: The built discovery files of the two nodes, when their checkouts are here.
 SITE_DOCUMENTS = [
-    NEIGHBOURS / "AgenticSystemCore.com" / "www-next" / ".well-known" / "knowledge-linkset",
+    NEIGHBOURS / "AgenticSystemCore.com" / "www" / ".well-known" / "knowledge-linkset",
     NEIGHBOURS / "AgenticSystemCore-Patterns" / "www" / ".well-known" / "knowledge-linkset",
 ]
 

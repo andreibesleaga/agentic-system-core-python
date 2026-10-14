@@ -65,7 +65,8 @@ LEVEL_AREAS = {
 #: Level's behaviour, each with the Level it belongs to; a claim at a lower Level neither
 #: runs them nor fails for them. The engine and the specification carry the same table.
 HIGHER_LEVEL_CASES = {
-    "bundle-0001": 1, "bundle-0006": 1, "bundle-0007": 1, "disc-0005": 1, "disc-0019": 1,
+    "bundle-0001": 1, "bundle-0006": 1, "bundle-0007": 1, "bundle-0009": 1, "bundle-0010": 1,
+    "disc-0005": 1, "disc-0019": 1,
     "bundle-0008": 2, "disc-0009": 2, "disc-0012": 2, "disc-0015": 2, "disc-0016": 2,
     "disc-0017": 2, "disc-0018": 2, "disc-0020": 2, "disc-0021": 2, "lint-0026": 2,
     "bundle-0003": 3, "bundle-0004": 3, "bundle-0005": 3,
@@ -104,11 +105,15 @@ def spec_index_from(directory):
     overview_path = os.path.join(directory, "00-overview.md")
     with open(overview_path, "rb") as handle:
         overview = handle.read().decode("utf-8")
-    match = re.search(r"1\.0\.0-rc\.\d+", overview)
+    # The declaration line, a release or a candidate; a released overview still quotes
+    # the candidates before it as history, so the first candidate literal is not the
+    # declaration.  A file without the declaration line falls back to its first version.
+    match = (re.search(r'spec_version: "(\d+\.\d+\.\d+(?:-rc\.\d+)?)"', overview)
+             or re.search(r"(\d+\.\d+\.\d+(?:-rc\.\d+)?)", overview))
     return {
         "error_codes": codes,
         "rule_ids": rules,
-        "spec_version": match.group(0) if match else "unknown",
+        "spec_version": match.group(1) if match else "unknown",
     }
 
 

@@ -180,9 +180,8 @@ def test_a_request_carries_the_path_the_query_and_the_accept_header(fake_connect
 
 
 def test_a_response_over_the_cap_is_e907(fake_connection):
-    # AGSC-11-10(f): a fetch aborted at its cap is AGSC-E907.  Until 2026-10-06
-    # (verification finding C17 (b), the Python half) it was AGSC-E904, the code of a
-    # local input file over 1 MiB (AGSC-01-16).
+    # AGSC-11-10(f): a fetch aborted at its cap is AGSC-E907, not AGSC-E904, the code
+    # of a local input file over 1 MiB (AGSC-01-16).
     net._PinnedHTTPSConnection = fake_connection
     connection_holder = {}
 
@@ -254,7 +253,7 @@ def test_the_pinned_connections_are_built_without_opening_anything():
 
 
 def test_a_target_is_capped_at_the_federation_default_not_at_one_mebibyte(fake_connection):
-    # C17 (b): targets other than the discovery document are held to
+    # Targets other than the discovery document are held to
     # federation.max_bytes' default (AGSC-11-01), so a graph over 1 MiB can be checked.
     assert net.TARGET_MAX_BYTES == 33554432
 
@@ -272,9 +271,9 @@ def test_a_target_is_capped_at_the_federation_default_not_at_one_mebibyte(fake_c
 
 
 def test_one_deadline_holds_the_whole_response_not_an_idle_timer(fake_connection, monkeypatch):
-    # AGSC-11-10(e, f), C17 (a), the Python half: a server that sends one piece every
-    # two seconds kept an idle timer from ever firing.  The fetch now has ONE deadline,
-    # from the request to the last byte, and every socket wait is bounded by what is left.
+    # AGSC-11-10(e, f): a server that sends one piece every two seconds would keep an
+    # idle timer from ever firing.  The fetch has ONE deadline, from the request to the
+    # last byte, and every socket wait is bounded by what is left.
     clock = [1000.0]
     monkeypatch.setattr(net.time, "monotonic", lambda: clock[0])
     sockets = []
