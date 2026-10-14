@@ -553,8 +553,7 @@ def test_a_restricted_node_is_asked_the_cross_origin_pair_on_its_document_alone(
                          "digest": [digest(graph)], "href": "https://node.example/graph.jsonld",
                          "type": "application/ld+json"}],
         "https://w3id.org/agentic-system-core/rel#access": [
-            {"agsc-access": ["credential"], "href": "https://node.example/access/",
-             "type": "text/html"}],
+            {"href": "https://node.example/access/", "type": "text/html"}],
     }
     served = {GOOD_URL: json.dumps({"linkset": [context]}, separators=(",", ":"),
                                    sort_keys=True).encode() + b"\n",
@@ -624,29 +623,6 @@ def test_a_restricted_node_with_two_access_links_is_e210():
 def test_a_restricted_node_with_one_access_link_passes():
     findings, _ = _access_findings(_level0_view(access=("https://node.example/access/",)))
     assert findings == []
-
-
-def test_a_restricted_level0_node_requires_generated_at_and_spec_version():
-    for attribute in ("agsc-generated-at", "agsc-spec-version"):
-        document = _level0_view(access=("https://node.example/access/",))
-        del document["linkset"][0]["describedby"][0][attribute]
-        findings, _ = _access_findings(document)
-        assert [(one["code"], one["severity"]) for one in findings] == [("AGSC-E202", "error")]
-        assert attribute in findings[0]["message"]
-
-
-def test_a_restricted_node_requires_credential_access_class():
-    for access_value in (None, [], ["none"], ["credential", "credential"]):
-        document = _level0_view(access=("https://node.example/access/",))
-        target = document["linkset"][0][_ACCESS_REL][0]
-        if access_value is None:
-            del target["agsc-access"]
-            expected = "AGSC-E202"
-        else:
-            target["agsc-access"] = access_value
-            expected = "AGSC-E201" if not access_value else "AGSC-E210"
-        findings, about = _access_findings(document)
-        assert [one["code"] for one in about] == [expected], (access_value, findings)
 
 
 def test_the_access_link_is_asked_at_every_level_and_never_of_a_public_node():

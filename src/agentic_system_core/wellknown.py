@@ -426,11 +426,6 @@ def check(source, level, findings, dev=False):
                        % name)
         if isinstance(ledger, list) and ledger:
             report("AGSC-E210", "a restricted node publishes no rel#ledger link (AGSC-11-20)")
-        if level < 2:
-            for name in ("agsc-generated-at", "agsc-spec-version"):
-                if name not in graph_link:
-                    report("AGSC-E202",
-                           "a restricted node carries %s at every Level (AGSC-11-20)" % name)
         # AGSC-11-20: exactly one rel#access link, at every Level (a restricted node
         # asserts conformance for its Level-0 view).  A value that is not a non-empty
         # array is already AGSC-E201 (RFC 9264 section 4.2.2), so only absence and a
@@ -529,20 +524,6 @@ def check(source, level, findings, dev=False):
                     report("AGSC-E201",
                            "relation %s: target attribute %s must be a non-empty array of "
                            "strings (AGSC-06-10)" % (relation, name))
-            if (restricted and relation == REL_BASE + "access"
-                    and isinstance(access, list) and len(access) == 1):
-                if "agsc-access" not in target:
-                    report("AGSC-E202",
-                           "rel#access target carries the required agsc-access attribute "
-                           "(AGSC-11-20)")
-                elif (isinstance(target["agsc-access"], list)
-                      and target["agsc-access"]
-                      and all(isinstance(one, str) for one in target["agsc-access"])
-                      and (len(target["agsc-access"]) != 1
-                           or target["agsc-access"][0] != "credential")):
-                    report("AGSC-E210",
-                           'rel#access target carries exactly ["credential"] in agsc-access '
-                           "(AGSC-11-20)")
             same_origin = parsed.origin == anchor.origin
             artefact = (
                 same_origin
