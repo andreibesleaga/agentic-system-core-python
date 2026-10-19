@@ -183,6 +183,23 @@ def test_sitemap_robots_and_linkset_writers():
                                             "User-agent: *\nAllow: /\n")
     level0 = discovery.linkset("https://a.example/", level=0)
     assert "digest" not in discovery.linkset_bytes(level0)
+    # AGSC-11-20: a restricted node keeps agsc-generated-at and agsc-spec-version at
+    # every Level, and its Level-0 view passes the checker at Level 0.
+    for low in (0, 1):
+        restricted_low = discovery.linkset(
+            "https://a.example/", level=low, restricted=True,
+            facts={"generated_at": "T", "spec_version": "S", "counts": ["c=1"]},
+            access="https://a.example/access/")
+        graph_link = restricted_low["linkset"][0]["describedby"][0]
+        assert graph_link["agsc-generated-at"] == ["T"]
+        assert graph_link["agsc-spec-version"] == ["S"]
+        assert "agsc-counts" not in graph_link and "digest" not in graph_link
+        findings = []
+        wellknown.check(wellknown.from_value(restricted_low), 0, findings)
+        assert findings == [], findings
+    # A public Level-0 node still carries neither (AGSC-06-08a).
+    assert "agsc-generated-at" not in discovery.linkset(
+        "https://a.example/", level=0, facts={"generated_at": "T"})["linkset"][0]["describedby"][0]
     restricted = discovery.linkset("https://a.example/", level=2, restricted=True,
                                    facts={"generated_at": "T", "spec_version": "S"},
                                    access="https://a.example/access/")

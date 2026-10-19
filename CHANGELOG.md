@@ -11,6 +11,16 @@ differently (SemVer's `1.0.0-rc.7` is `1.0.0rc7` here).
 
 ## [Unreleased]
 
+### Fixed
+
+- The discovery-document checker now asks a restricted node for everything AGSC-11-20
+  already requires of it, as the engine's `tools/validate-wellknown` does, with the same
+  codes and words: the `…/rel#access` link carries `agsc-access` `credential` (missing is
+  `AGSC-E202`, another value `AGSC-E210`), and `agsc-generated-at` and
+  `agsc-spec-version` are present at Levels 0 and 1 (missing is `AGSC-E202`).
+- `discovery.linkset` writes `agsc-generated-at` and `agsc-spec-version` on a restricted
+  node at every Level, as AGSC-11-20 requires. A public node's output is unchanged.
+
 ## [1.0.0] - 2026-10-14
 
 ### Upgrading from 1.0.0rc7

@@ -27,7 +27,9 @@ a malformed digest; AGSC-E209 for a relation outside AGSC-06-10/06-35;
 AGSC-E506 (a warning) for a relation or a target attribute of a newer MINOR,
 which is ignored (AGSC-00-21, AGSC-09-93);
 AGSC-E210 for a surface declaration that disagrees with the node, and for a
-restricted node's second rel#access link (one with none is AGSC-E202); AGSC-E601 for
+restricted node's second rel#access link or an agsc-access other than credential on
+it (a restricted node with no rel#access link, an access link with no agsc-access,
+or no agsc-generated-at or agsc-spec-version at Level 0 or 1, is AGSC-E202); AGSC-E601 for
 non-canonical bytes at Level 2 and above; AGSC-E901/E902/E904/E905/E907 for
 input and transport faults.  A missing response header or header value is
 AGSC-E202 and one the rules forbid is AGSC-E201.
@@ -81,6 +83,8 @@ LEVEL2_ATTRIBUTES = ("agsc-bundle-hash", "agsc-bundle-version", "agsc-counts",
 #: AGSC-11-20: what a restricted node must omit.
 RESTRICTED_FORBIDDEN = ("agsc-bundle-hash", "agsc-bundle-version", "agsc-counts",
                         "agsc-ledger-head")
+#: AGSC-11-20: the two a restricted node still carries, at every Level.
+RESTRICTED_KEPT = ("agsc-generated-at", "agsc-spec-version")
 #: AGSC-11-20: the targets a restricted node serves unauthenticated, and so the only
 #: ones whose `digest` it may publish (its Level-0 view).
 OPEN_WHEN_RESTRICTED = ("/graph.jsonld", "/llms.txt")
@@ -437,6 +441,16 @@ def check(source, level, findings, dev=False):
             report("AGSC-E202", where + "; this one carries none (AGSC-11-20)")
         elif isinstance(access, list) and len(access) > 1:
             report("AGSC-E210", where + "; this one carries %d (AGSC-11-20)" % len(access))
+        # AGSC-11-20: the two facts that say only that the node exists and is current
+        # stay on a restricted node at every Level; the Level-0 omission of AGSC-06-08a
+        # does not reach them.  At Level 2 and above their absence is already reported
+        # with the other Level-2 attributes, so only Levels 0 and 1 are judged here.
+        if level < 2:
+            for name in RESTRICTED_KEPT:
+                if name not in graph_link:
+                    report("AGSC-E202",
+                           'a restricted node carries "%s" at every Level: it says only that '
+                           "the node exists and is current (AGSC-11-20)" % name)
     elif level >= 2 and not (isinstance(ledger, list) and ledger):
         # AGSC-10-04 / AGSC-09-93: the derived ledger is part of Level 2, so a public
         # node claiming it publishes /ledger.jsonl and links it.
@@ -586,9 +600,29 @@ def check(source, level, findings, dev=False):
                 peers.append(href)
             if extension == "surface":
                 _check_surface(target, href, parsed, raw_anchor, source, report)
+            if extension == "access" and restricted:
+                _check_access_target(target, href, report)
 
     _check_headers(source, anchor, restricted, level, report)
     return {"anchor": raw_anchor, "peers": peers}
+
+
+def _check_access_target(target, href, report):
+    """AGSC-11-20: the access link of a restricted node carries ``agsc-access``
+    ``credential`` (case disc-0020).  Its absence is AGSC-E202; any other value is
+    AGSC-E210.  A value that is not a non-empty array of strings is already
+    AGSC-E201 and is not judged again here."""
+    if "agsc-access" not in target:
+        report("AGSC-E202",
+               'rel#access %s: the access link of a restricted node carries agsc-access '
+               '["credential"] (AGSC-11-20)' % href)
+        return
+    value = target["agsc-access"]
+    if (isinstance(value, list) and value and all(isinstance(one, str) for one in value)
+            and value != ["credential"]):
+        report("AGSC-E210",
+               'rel#access %s: the access link of a restricted node carries exactly agsc-access '
+               '["credential"]; this one carries %s (AGSC-11-20)' % (href, _compact(value)))
 
 
 _MAJOR_MINOR = re.compile(r"^(\d+)\.(\d+)(?:\.|$)")

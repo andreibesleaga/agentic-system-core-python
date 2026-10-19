@@ -199,7 +199,8 @@ def linkset(base, level=2, artefacts=None, facts=None, peers=(), restricted=Fals
     ``bundle_version`` and ``ledger_head``.  Level 0 omits every digest and every
     ``agsc-*`` attribute (AGSC-06-08a); a restricted node omits the four of
     AGSC-11-20, the ledger link and the digest of every target it does not serve
-    unauthenticated, and carries ``agsc-visibility`` and, given ``access``, the one
+    unauthenticated, keeps ``agsc-generated-at`` and ``agsc-spec-version`` at every
+    Level (AGSC-11-20), and carries ``agsc-visibility`` and, given ``access``, the one
     ``rel#access`` link that names where a reader obtains credentials.
     """
     root = _base(base)
@@ -217,10 +218,12 @@ def linkset(base, level=2, artefacts=None, facts=None, peers=(), restricted=Fals
         return link
 
     described = {}
-    if full:
+    # AGSC-11-20: a restricted node keeps these two at every Level; the Level-0
+    # omission of AGSC-06-08a does not reach them.
+    if full or restricted:
         described = {"agsc-generated-at": facts.get("generated_at"),
                      "agsc-spec-version": facts.get("spec_version")}
-        if not restricted:
+        if full and not restricted:
             described.update({"agsc-bundle-hash": facts.get("bundle_hash"),
                               "agsc-bundle-version": facts.get("bundle_version"),
                               "agsc-counts": facts.get("counts")})
