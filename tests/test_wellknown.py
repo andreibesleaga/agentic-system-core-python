@@ -553,7 +553,8 @@ def test_a_restricted_node_is_asked_the_cross_origin_pair_on_its_document_alone(
                          "digest": [digest(graph)], "href": "https://node.example/graph.jsonld",
                          "type": "application/ld+json"}],
         "https://w3id.org/agentic-system-core/rel#access": [
-            {"href": "https://node.example/access/", "type": "text/html"}],
+            {"agsc-access": ["credential"], "href": "https://node.example/access/",
+             "type": "text/html"}],
     }
     served = {GOOD_URL: json.dumps({"linkset": [context]}, separators=(",", ":"),
                                    sort_keys=True).encode() + b"\n",
@@ -645,3 +646,78 @@ def test_the_two_checkers_word_the_access_findings_alike():
     assert repeated[0]["message"] == (
         "a restricted node carries exactly one rel#access link, naming where a reader "
         "obtains credentials; this one carries 2 (AGSC-11-20)")
+
+
+def test_a_restricted_access_link_with_no_access_class_is_e202():
+    # AGSC-11-20: the link carries the one-value attribute agsc-access credential, as
+    # the writer emits it (case disc-0020).
+    document = _level0_view(access=("https://node.example/access/",))
+    del document["linkset"][0][_ACCESS_REL][0]["agsc-access"]
+    findings, about = _access_findings(document)
+    assert [(one["code"], one["severity"]) for one in about] == [("AGSC-E202", "error")]
+    assert findings == about, findings
+    assert about[0]["message"] == (
+        'rel#access https://node.example/access/: the access link of a restricted node '
+        'carries agsc-access ["credential"] (AGSC-11-20)')
+
+
+def test_a_restricted_access_link_with_another_access_class_is_e210():
+    for value in (["none"], ["consent"], ["credential", "credential"], ["x-other"]):
+        document = _level0_view(access=("https://node.example/access/",))
+        document["linkset"][0][_ACCESS_REL][0]["agsc-access"] = value
+        findings, about = _access_findings(document)
+        assert [(one["code"], one["severity"]) for one in about] == [("AGSC-E210", "error")], value
+        assert findings == about, findings
+    assert about[0]["message"] == (
+        'rel#access https://node.example/access/: the access link of a restricted node carries '
+        'exactly agsc-access ["credential"]; this one carries ["x-other"] (AGSC-11-20)')
+
+
+def test_a_malformed_access_class_is_e201_and_not_judged_again():
+    for value in ([], "credential", [1]):
+        document = _level0_view(access=("https://node.example/access/",))
+        document["linkset"][0][_ACCESS_REL][0]["agsc-access"] = value
+        findings, _ = _access_findings(document)
+        assert [one["code"] for one in findings] == ["AGSC-E201"], (value, findings)
+
+
+def test_every_access_link_of_a_restricted_node_is_asked_its_access_class():
+    document = _level0_view(
+        access=("https://node.example/access/", "https://node.example/access/other/"))
+    del document["linkset"][0][_ACCESS_REL][1]["agsc-access"]
+    findings, _ = _access_findings(document)
+    assert sorted(one["code"] for one in findings) == ["AGSC-E202", "AGSC-E210"], findings
+
+
+def test_a_public_node_is_not_asked_the_access_class_of_an_access_link():
+    document = _level0_view(access=("https://node.example/access/",), restricted=False)
+    del document["linkset"][0][_ACCESS_REL][0]["agsc-access"]
+    findings, _ = _access_findings(document)
+    assert findings == []
+
+
+def test_a_restricted_node_keeps_generated_at_and_spec_version_at_every_level():
+    # AGSC-11-20: the Level-0 omission of AGSC-06-08a does not reach these two on a
+    # restricted node.  Levels 0 and 1 are judged by this rule; Level 2 and above
+    # report them with the other Level-2 attributes, once each.
+    for name in ("agsc-generated-at", "agsc-spec-version"):
+        for level in (0, 1):
+            document = _level0_view(access=("https://node.example/access/",))
+            del document["linkset"][0]["describedby"][0][name]
+            findings, _ = _access_findings(document, level)
+            assert [(one["code"], one["severity"]) for one in findings] == [
+                ("AGSC-E202", "error")], (name, level, findings)
+            assert findings[0]["message"] == (
+                'a restricted node carries "%s" at every Level: it says only that the node '
+                "exists and is current (AGSC-11-20)" % name)
+        document = _level0_view(access=("https://node.example/access/",))
+        del document["linkset"][0]["describedby"][0][name]
+        findings, _ = _access_findings(document, 2)
+        assert [one["code"] for one in findings if name in one["message"]] == ["AGSC-E202"], name
+
+
+def test_a_public_level0_node_is_not_asked_generated_at_or_spec_version():
+    document = _level0_view(restricted=False)
+    assert "agsc-generated-at" not in document["linkset"][0]["describedby"][0]
+    findings, _ = _access_findings(document)
+    assert findings == []
