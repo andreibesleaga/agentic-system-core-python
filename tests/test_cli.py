@@ -21,7 +21,7 @@ def run(argv):
 def test_version():
     code, out, _ = run(["--version"])
     assert code == 0
-    assert out.strip() == "agsc 1.0.0 (Python package; specification 1.0.0)"
+    assert out.strip() == "agsc 1.0.1 (Python package; specification 1.0.0)"
 
 
 def test_release_metadata():
@@ -31,8 +31,8 @@ def test_release_metadata():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     with open(os.path.join(root, "pyproject.toml"), encoding="utf-8") as handle:
         pyproject = handle.read()
-    assert (pkg.__version__, pkg.SEMVER_VERSION, pkg.SPEC_VERSION) == ("1.0.0", "1.0.0", "1.0.0")
-    assert '\nversion = "1.0.0"\n' in pyproject
+    assert (pkg.__version__, pkg.SEMVER_VERSION, pkg.SPEC_VERSION) == ("1.0.1", "1.0.1", "1.0.0")
+    assert '\nversion = "1.0.1"\n' in pyproject
     assert '"Development Status :: 5 - Production/Stable",' in pyproject
     assert "Development Status :: 4" not in pyproject
 

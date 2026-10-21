@@ -12,14 +12,16 @@
 # change what runs here, and every tool is installed at an exact version.
 #
 # Order: (1) the tag must be the version in pyproject.toml, the engine's
-# specification tag follows from that version, and the tagged commit must be on
+# package tag follows from that version, and the tagged commit must be on
 # `main`; (2) the whole test lane, test.yml, called with that engine tag — the same
 # legs, the same equivalence tests, the same port-implementer scenarios, ruff and mypy
 # as every pull request, so a release is never tested less than a pull request;
 # (3) the build, once, on 3.12; (4) the upload. The engine tag is the package version
-# in the engine's spelling: 1.0.0rc7 -> 1.0.0-rc.7, 1.0.0 -> 1.0.0, a post release
-# 1.0.0.post1 -> 1.0.0 (it tests against the release it follows); a version with no
-# such tag (an alpha, a beta, a development release) is refused, never guessed.
+# in the engine's spelling, with the engine's `v` prefix: 1.0.0rc7 -> v1.0.0-rc.7,
+# 1.0.1 -> v1.0.1, a post release 1.0.0.post1 -> v1.0.0 (it tests against the release it
+# follows); a version with no such tag (an alpha, a beta, a development release) is
+# refused, never guessed. The package tag exists for every engine release, while a
+# specification tag (no `v`) exists only when the specification moved.
 #
 # The one-time PyPI setup and the tag (v<version>, e.g. v1.0.0rc7) are the
 # maintainer's.
@@ -51,7 +53,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-      - name: the tag must be the version; the engine tag follows from it
+      - name: the tag must be the version; the engine package tag follows from it
         id: derive
         run: |
           python - <<'PY'
@@ -66,10 +68,12 @@ jobs:
               sys.exit('version %s has no engine tag: a release is X.Y.Z or X.Y.ZrcN, '
                        'with or without .postN' % version)
           release, candidate = match.groups()
-          engine = release if candidate is None else '%s-rc.%s' % (release, candidate)
+          # The engine's PACKAGE tag (v…), which exists for every engine release; a
+          # specification tag does not exist for a package-only patch.
+          engine = 'v' + (release if candidate is None else '%s-rc.%s' % (release, candidate))
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('version=%s\nengine_ref=%s\n' % (version, engine))
-          print('tag %s matches version %s; the engine is tested at its tag %s' % (tag, version, engine))
+          print('tag %s matches version %s; the engine is tested at its package tag %s' % (tag, version, engine))
           PY
       - name: the tagged commit must be on main
         env:

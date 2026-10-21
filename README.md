@@ -37,8 +37,8 @@ installed only when asked for, with `--pre` or by naming its version. The two
 so pip never picks them.
 
 Python 3.9 or newer; every release is tested on 3.9, 3.13 and 3.14. Python 3.9
-reached its end of life in October 2025 and is still supported by this release
-(1.0.0). To forward the other verbs you also need Node 22.13 or newer and the
+reached its end of life in October 2025 and is still supported by this release.
+To forward the other verbs you also need Node 22.13 or newer and the
 npm package:
 
 ```
@@ -200,11 +200,14 @@ arguments and never through a shell.
 
 ## Version
 
-The specification version is `1.0.0`. Python packages use PEP 440, which spells
-a release the same way as SemVer, so the version on PyPI is `1.0.0` too; a
+Two numbers, stated apart. The package version is `1.0.1`; the specification version
+it implements is `1.0.0` (`SPEC_VERSION`). A patch of the package — a defect in a check,
+a message — does not move the specification, and `agsc --version` prints both:
+`agsc 1.0.1 (Python package; specification 1.0.0)`. Python packages use PEP 440, which
+spells a release the same way as SemVer, so the version on PyPI is `1.0.1` too; a
 release candidate is spelled differently: SemVer's `X.Y.Z-rc.N` is PEP 440's
-`X.Y.ZrcN`.
-`agsc --version` prints the package version and the specification version.
+`X.Y.ZrcN`. A release is tested against the engine at its package tag of the same
+version (`v1.0.1`).
 What changed in each version, and what the checker may now report, is in the
 [change log](https://github.com/andreibesleaga/agentic-system-core-python/blob/main/CHANGELOG.md).
 
