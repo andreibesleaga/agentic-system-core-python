@@ -28,7 +28,8 @@
 #   Engine     `andreibesleaga/agentic-system-core` at ENGINE_REF (below):
 #              `main` by default; set the variable to a tag or a commit to pin, or
 #              name another ref in a manual run. A release passes the engine's
-#              package tag `v<version>` for the package version as `engine_ref`.
+#              package tag for the package version as `engine_ref` (1.0.1 -> v1.0.1,
+#              1.0.0rc7 -> v1.0.0-rc.7: the engine's SemVer spelling).
 #   Runner     ubuntu-24.04, the newest image actions/python-versions builds 3.9 for
 #              (the same choice as release.yml).
 #   Secrets    none. The engine repository is public, so the default token reads it.
