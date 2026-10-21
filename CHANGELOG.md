@@ -3,13 +3,18 @@
 All notable changes to the Python package `agentic-system-core`: the two standalone
 checkers, the reading API and the `agsc` command. The specification and the Node engine
 keep their own change log, in the engine repository's `CHANGELOG.md`; this package
-follows the specification version of the same number.
+carries the engine package's version number and names the specification version it
+implements (`SPEC_VERSION`; README, "Version").
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions use
 PEP 440 spelling: a release is spelled as in SemVer (`1.0.0`), a release candidate
 differently (SemVer's `1.0.0-rc.7` is `1.0.0rc7` here).
 
 ## [Unreleased]
+
+## [1.0.1] - 2026-10-30
+
+A patch of the package. Specification `1.0.0` is unchanged (README, "Version").
 
 ### Fixed
 
@@ -20,6 +25,14 @@ differently (SemVer's `1.0.0-rc.7` is `1.0.0rc7` here).
   `agsc-spec-version` are present at Levels 0 and 1 (missing is `AGSC-E202`).
 - `discovery.linkset` writes `agsc-generated-at` and `agsc-spec-version` on a restricted
   node at every Level, as AGSC-11-20 requires. A public node's output is unchanged.
+- `agsc --version` printed the package version where the specification version
+  belongs; it now prints `agsc 1.0.1 (Python package; specification 1.0.0)`.
+
+### Changed
+
+- The release lane tests the package against the engine's package tag (`v<version>`,
+  which exists for every engine release) instead of the engine's specification tag,
+  which a package-only patch does not create.
 
 ## [1.0.0] - 2026-10-14
 

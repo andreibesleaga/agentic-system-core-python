@@ -22,7 +22,7 @@ import os
 import subprocess
 import sys
 
-from . import SEMVER_VERSION, __version__
+from . import SPEC_VERSION, __version__
 from .diagnostics import EXIT_PASS, EXIT_USAGE, envelope, exit_code, finding
 from .jcs import canonicalize_raw
 from .net import fetch
@@ -323,7 +323,7 @@ def main(argv=None, out=None, err=None):
         return EXIT_USAGE
     verb = argv[0]
     if verb in ("--version", "-V", "version"):
-        _write(out, "agsc %s (Python package; specification %s)\n" % (__version__, SEMVER_VERSION))
+        _write(out, "agsc %s (Python package; specification %s)\n" % (__version__, SPEC_VERSION))
         return EXIT_PASS
     if verb in ("--help", "-h", "help"):
         _write(out, USAGE)
