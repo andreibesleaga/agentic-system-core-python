@@ -7,4 +7,5 @@ the package wants the repository [README](../README.md) instead.
 
 | File | What it holds |
 |---|---|
-| `MAINTAINING.md` | how the package is arranged, what runs here and what is handed to the Node engine, the equivalence proof, the tests, refreshing what is copied from the specification, and releases |
+| `MAINTAINING.md` | how the package is arranged, what runs here and what is handed to the Node engine, the equivalence proof, the tests, the CI jobs, refreshing what is copied from the specification, and releases |
+| `ARCHITECTURE.md` | what the package talks to, how its modules import each other, and one run of `validate-wellknown`, as Mermaid diagrams |
