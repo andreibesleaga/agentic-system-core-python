@@ -49,8 +49,9 @@ npm install -g agentic-system-core
 the engine's command line: its verbs are exactly the sixteen of the specification
 (AGSC-09-07), so `validate-wellknown`, `validate-vectors` and `run-vectors` are not
 among them, and it refuses them with `AGSC-E001`. The `agsc` here is a checker
-distribution (the AGSC-09-90 contracts) that runs those three itself and hands
-every other verb to the engine. With both installed, whichever directory comes
+distribution that runs those three itself and hands every other verb to the
+engine. Two of the three, `validate-wellknown` and `validate-vectors`, are AGSC-09-90
+contracts; `run-vectors` is an addition of this package. With both installed, whichever directory comes
 first on your `PATH` decides which `agsc` you get; `python -m agentic_system_core.cli`
 always reaches this one.
 
@@ -136,6 +137,10 @@ of it — the rule identifiers, the registered error codes and the declared
 version — derived from `spec/` by command; `--spec <dir>` derives the same index
 from a live `spec/` directory instead.
 
+Without `--json`, `validate-vectors --quiet` prints no human-readable output, and
+`--root <dir>` names the folder that the file names in its findings are relative to.
+`run-vectors --level 0|1|2|3` runs only the areas and cases that Level requires.
+
 `run-vectors` executes the vectors. **It runs seven areas natively — `build`,
 `discovery`, `frontmatter`, `graph`, `jcs`, `links` and `slug` — and names every
 other area as not run, with the reason.** Each of the seven is derived from the
@@ -177,7 +182,10 @@ link.fetch(my_fetcher)                            # nothing fetches by itself
 `read_chunks` reads `chunks.jsonl` into a list of records, or returns the shard
 manifest as it stands when the file is one. `read_graph` reads `graph.jsonld` as
 plain JSON — no RDF library, no triples; turning it into a graph is a job for a
-library you choose.
+library you choose. Both take the bytes or text you already hold; `read_chunks_path`
+and `read_graph_path` take a file path instead. `link.fetch(fetcher)` calls your
+callable with the link's `href` alone, not with the three arguments of the fetcher
+that `validate` takes.
 
 A member the reader does not know — in a chunk line, a chunk manifest, the graph or
 a discovery document of a later version of the specification — is neither refused
@@ -241,8 +249,13 @@ python -m venv .venv && .venv/bin/pip install -e ".[test]"
 .venv/bin/python -m coverage run -m pytest && .venv/bin/python -m coverage report
 ```
 
-Deterministic, fixed data, no clock, no network. The only subprocess in the
-suite is the Node tool in the equivalence test.
+Deterministic, fixed data, no clock, no network. The subprocesses are the Node tool
+and vector runner in the two equivalence tests, and the workflow steps that
+`tests/test_ci_workflows.py` runs on scratch input. The tests that need Node and the
+engine checkout beside this repository (`../agentic-system-core`) are skipped, with a
+message, when either is absent: a fresh clone passes with those skipped, and a pull
+request is checked with the engine present
+([docs/MAINTAINING.md](https://github.com/andreibesleaga/agentic-system-core-python/blob/main/docs/MAINTAINING.md)).
 
 ## Licence
 

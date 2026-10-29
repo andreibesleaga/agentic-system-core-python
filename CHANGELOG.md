@@ -12,6 +12,8 @@ differently (SemVer's `1.0.0-rc.7` is `1.0.0rc7` here).
 
 ## [Unreleased]
 
+- Docs: README, `docs/MAINTAINING.md` corrected and extended (tests, CI jobs, release steps); `AGENTS.md` and `docs/ARCHITECTURE.md` added.
+
 ## [1.0.1] - 2026-10-21
 
 A patch of the package. Specification `1.0.0` is unchanged (README, "Version").
