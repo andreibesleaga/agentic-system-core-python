@@ -66,6 +66,13 @@ def test_a_final_version_installs_with_a_plain_pip_install():
     assert not re.search(r"\b\d+\.\d+\.\d+rc\d+\b", text), "the README names a release-candidate version"
 
 
+def test_the_public_text_names_no_pre_release_history():
+    for name in ("README.md", "CHANGELOG.md"):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        assert "0.0.x" not in text, name
+        assert not re.search(r"1\.0\.0-?rc\.?\d", text), name
+
+
 CHANGELOG_URL = "https://github.com/andreibesleaga/agentic-system-core-python/blob/main/CHANGELOG.md"
 
 

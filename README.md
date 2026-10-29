@@ -32,9 +32,7 @@ pip install agentic-system-core
 ```
 
 This installs the latest release. A release candidate of a later version is
-installed only when asked for, with `--pre` or by naming its version. The two
-`0.0.x` versions on PyPI only reserved the name, contain no code and are yanked,
-so pip never picks them.
+installed only when asked for, with `--pre` or by naming its version.
 
 Python 3.9 or newer; every release is tested on 3.9, 3.13 and 3.14. Python 3.9
 reached its end of life in October 2025 and is still supported by this release.

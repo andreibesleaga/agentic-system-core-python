@@ -8,7 +8,7 @@ implements (`SPEC_VERSION`; README, "Version").
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions use
 PEP 440 spelling: a release is spelled as in SemVer (`1.0.0`), a release candidate
-differently (SemVer's `1.0.0-rc.7` is `1.0.0rc7` here).
+differently (SemVer's `1.1.0-rc.1` is `1.1.0rc1` here).
 
 ## [Unreleased]
 
@@ -38,7 +38,7 @@ A patch of the package. Specification `1.0.0` is unchanged (README, "Version").
 
 ## [1.0.0] - 2026-10-14
 
-### Upgrading from 1.0.0rc7
+### Changes in 1.0.0
 
 The package follows specification `1.0.0`. `pip install agentic-system-core` installs it
 without `--pre`, and `agsc --version` prints `agsc 1.0.0 (Python package; specification

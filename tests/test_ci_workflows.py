@@ -174,12 +174,12 @@ def test_the_release_runs_the_test_lane_at_the_derived_engine_tag():
 @pytest.mark.skipif(sys.version_info < (3, 11), reason="the release step reads pyproject.toml "
                     "with tomllib, which Python 3.11 and later ship")
 @pytest.mark.parametrize("version, tag, engine", [
-    ("1.0.0rc7", "v1.0.0rc7", "v1.0.0-rc.7"),
+    ("1.2.0rc1", "v1.2.0rc1", "v1.2.0-rc.1"),
     ("1.0.0", "v1.0.0", "v1.0.0"),
     ("1.0.0.post1", "v1.0.0.post1", "v1.0.0"),
     ("1.0.1", "v1.0.1", "v1.0.1"),
     ("1.1.0rc2.post3", "v1.1.0rc2.post3", "v1.1.0-rc.2"),
-    ("1.0.0", "v1.0.0rc7", None),
+    ("1.0.0", "v1.0.0rc1", None),
     ("1.0.0a1", "v1.0.0a1", None),
     ("1.0.0.dev1", "v1.0.0.dev1", None),
     ("1.0", "v1.0", None),
