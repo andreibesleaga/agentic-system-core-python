@@ -28,7 +28,10 @@ Both need the engine checked out beside this repository at `../agentic-system-co
 Node 22.13 or later; without them they are skipped with a message. The tests that read
 the built discovery files of the two sites use the checkouts beside this repository, at
 `../AgenticSystemCore.com` and `../AgenticSystemCore-Patterns`, and skip a site that is
-absent.
+absent. `../AgenticSystemCore-Patterns` is the maintainer's private working copy of the
+demo node (its built `www/` is committed there; the public `agsc-demo-node` does not
+commit `www/`), so CI checks out only the main site and the patterns node's discovery
+file is read on the maintainer's machine.
 
 ## Tests
 
