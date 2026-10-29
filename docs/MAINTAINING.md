@@ -85,6 +85,12 @@ before this package's tag is pushed; it exists for every engine release, while a
 specification tag exists only when the specification moved. The version in `pyproject.toml` must be the engine's version in PEP 440
 spelling; the engine's `tools/release` checks that the two agree.
 
+To roll back a bad release, yank that version on PyPI (project page, "Manage",
+the release, "Options", "Yank"): pip then stops choosing it, but anyone who pins it still gets it. Never
+delete it. Fix the cause and release the next patch version through the same lane
+(for example `1.0.2` after a bad `1.0.1`), and add a line to `CHANGELOG.md` under the
+new version that names the yanked one and why.
+
 Before tagging, write the new version in every place that carries it: `pyproject.toml`,
 `__version__` and `SEMVER_VERSION` in `src/agentic_system_core/__init__.py`, the
 "Version" section of the README, and a heading in `CHANGELOG.md`. `tests/test_cli.py`
