@@ -33,7 +33,8 @@ NEEDS_A_WHOLE_BUILD = [
     "build-0015", "build-0017", "build-0020", "build-0021", "build-0022", "build-0023",
     "build-0025", "build-0026", "build-0027", "build-0028", "build-0029", "build-0030",
     "build-0033", "build-0034", "disc-0018", "disc-0032", "graph-0027"]
-NEEDS_A_WRITER_THIS_PACKAGE_LACKS = ["build-0031", "build-0032", "build-0037", "graph-0041"]
+NEEDS_A_WRITER_THIS_PACKAGE_LACKS = ["build-0031", "build-0032", "build-0037", "disc-0020",
+                                     "disc-0021", "graph-0041"]
 DOMAIN_LAYER = ["fm-0022", "fm-0023", "fm-0024", "fm-0025", "fm-0027", "graph-0042",
                 "graph-0044", "graph-0045", "graph-0046", "links-0018", "links-0019"]
 
@@ -43,10 +44,10 @@ def test_every_vector_of_every_area_this_package_runs_passes():
     failed = [one["id"] for one in report["results"] if one["status"] == "fail"]
     assert failed == []
     assert code == 0
-    assert report["tally"]["pass"] == 113
-    # Thirty-two vectors are reported not run, by name, each with its reason.
+    assert report["tally"]["pass"] == 111
+    # Thirty-four vectors are reported not run, by name, each with its reason.
     not_run = NEEDS_A_WHOLE_BUILD + NEEDS_A_WRITER_THIS_PACKAGE_LACKS + DOMAIN_LAYER
-    assert report["tally"]["not_run"] == len(not_run) == 32
+    assert report["tally"]["not_run"] == len(not_run) == 34
     assert sorted(report["vectors_not_run"]) == sorted(not_run)
     for identifier in DOMAIN_LAYER:
         assert report["vectors_not_run"][identifier] == "domain layer: engine only in 1.1"
@@ -55,11 +56,13 @@ def test_every_vector_of_every_area_this_package_runs_passes():
         assert reasons[identifier] == "needs the engine's build and the query page (Level 3)"
     assert "PROV-O" in reasons["disc-0032"] and "writes no HTML" in reasons["disc-0032"]
     assert "export --closure" in reasons["graph-0041"]
+    for identifier in ("disc-0020", "disc-0021"):
+        assert "whole link table of AGSC-06-08" in reasons[identifier]
     assert report["tally"]["withdrawn"] == 6
     assert report["areas_run"] == vectors_module_areas()
     assert report["areas_not_run"] == {}
-    assert "113 pass" in report["summary"]
-    assert "32 not run by this package" in report["summary"]
+    assert "111 pass" in report["summary"]
+    assert "34 not run by this package" in report["summary"]
 
 
 def test_a_level_selects_its_area_set():

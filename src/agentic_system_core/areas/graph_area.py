@@ -7,11 +7,13 @@ graph-0040) and the context address that does not follow the ontology version
 know is a failure, so a vector can never pass on an assertion nobody made.
 """
 
+import re
+
 from .. import context as context_module
 from .. import derive, links, questions, skos
 from .. import graph as graph_module
 from ..jcs import canonicalize
-from ..rdf import Literal, nquads_term, prefix_block, turtle_has_blank_node, turtle_term
+from ..rdf import ASC, Literal, nquads_term, prefix_block, turtle_has_blank_node, turtle_term
 from ._assert import checks, shown
 
 
@@ -42,6 +44,50 @@ def _export_blocks(markdown_text):
         if current is not None:
             current.append(line)
     return blocks
+
+
+#: The engine's ``normaliseClause``: a leading subject IRI and a trailing ``;`` or ``.``.
+_CLAUSE_SUBJECT = re.compile(r"^<[^>]*>\s+")
+_CLAUSE_END = re.compile(r"\s*[;.]$")
+
+
+def _clause_names(turtle):
+    """The first term of every Turtle clause outside the prefix block, as the engine's
+    ``clauses`` reads them: the predicate of a clause, after its subject."""
+    names = []
+    for line in turtle.split("\n"):
+        if line.strip() == "" or line.startswith("@prefix"):
+            continue
+        clause = _CLAUSE_END.sub("", _CLAUSE_SUBJECT.sub("", line.lstrip())).strip()
+        name = re.split(r"\s", clause)[0]
+        if name != "":
+            names.append(name)
+    return names
+
+
+def _forbidden(entry, given, base, quads, ttl):
+    """One entry of ``expected.forbidden`` (graph-0018): a prose statement of a form
+    the rules exclude, checked by its own reading as the engine's ``forbiddenCheck``
+    does.  An entry no reading knows fails, so a new clause cannot be met by doing
+    nothing."""
+    if entry.endswith("@en^^"):
+        return ("forbidden-lang-datatype", "@en^^" not in quads and "@en^^" not in ttl,
+                "a language-tagged literal carries a datatype")
+    if "^^xsd:string in Turtle" in entry:
+        return ("forbidden-xsd-string", "^^xsd:string" not in ttl, "^^xsd:string in Turtle")
+    if "status is not authored" in entry:
+        stripped = [dict((key, value) for key, value in item.items() if key != "status")
+                    for item in given["items"]]
+        without = graph_module.to_nquads(stripped, base, given.get("bundle"),
+                                         given.get("attachment_bytes"))
+        return ("forbidden-status", ASC + "status" not in without, shown(without))
+    if "ordered by prefixed name" in entry:
+        # AGSC-05-10(c): predicates sort by IRI code points; the case is chosen so the
+        # two orders differ.
+        names = _clause_names(ttl)
+        return ("forbidden-prefixed-order", names != sorted(names),
+                "the emitted order %s is also the prefixed-name order" % " ".join(names))
+    return ("forbidden " + entry, False, "this handler does not implement that clause")
 
 
 def _jsonld_files(given, expected, base):
@@ -185,8 +231,7 @@ def run(vector):
             count = sum(1 for line in lines if "_:" in line)
             items.append(("blank-nodes", count == expected["blank_nodes"], shown(count)))
         if have("forbidden"):
-            present = [one for one in expected["forbidden"] if one in ttl or one in quads]
-            items.append(("forbidden", present == [], shown(present)))
+            items.extend(_forbidden(one, given, base, quads, ttl) for one in expected["forbidden"])
         if have("contains"):
             missing = [one for one in expected["contains"] if one not in lines]
             items.append(("contains", missing == [], shown(missing)))

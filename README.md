@@ -55,6 +55,12 @@ always reaches this one.
 
 ## What runs here
 
+The checkers and the vector runner below run here. One part of the specification does
+not: the domain layer (site vocabulary, domain keys, warrants, contexts, crosswalks and
+SHACL shapes). In 1.1 only the engine checks it; its cases are reported not run with
+that reason, and Python parity for it is one of the "Ideas after 1.1" of the engine's
+roadmap.
+
 ### `agsc validate-wellknown <file>`
 
 Checks one discovery document — the file a node serves at
@@ -67,6 +73,16 @@ surface declarations, and, with `--peer`, the mutual check between two nodes.
 agsc validate-wellknown www/.well-known/knowledge-linkset --level 2 --json
 agsc validate-wellknown www/.well-known/knowledge-linkset \
      --peer ../other/www/.well-known/knowledge-linkset
+```
+
+No node to check yet? The engine builds one. With the npm package installed, in a git
+repository of Markdown items with at least one commit (the ledger a Level-2 node links
+is derived from that history; without it Level 2 reports AGSC-E202 for the missing
+ledger link, in both checkers):
+
+```
+agsc build --level 2
+agsc validate-wellknown www/.well-known/knowledge-linkset --level 2
 ```
 
 Levels 0 to 3 mean what the specification says they mean. At Level 0 and 1 the
@@ -172,7 +188,7 @@ rule text of the specification alone, in the standard library:
 Vectors of these seven areas that `run-vectors` reports as not run, each with its reason:
 
 - Seventeen need a whole Bundle build: `build-0015`, `build-0017`, `build-0020` to `build-0023`, `build-0025` to `build-0030`, `build-0033`, `build-0034`, `disc-0018`, `disc-0032`, `graph-0027`.
-- Four need a writer this package does not carry, the HTML item pages, the chunk files or the closure file of `export --closure` (with the OWL 2 RL rules of AGSC-05-37): `build-0031`, `build-0032`, `build-0037`, `graph-0041`.
+- Six need a writer this package does not carry, the HTML item pages, the chunk files, the closure file of `export --closure` (with the OWL 2 RL rules of AGSC-05-37) or the whole link table of AGSC-06-08 (this package's link-set writer covers part of it): `build-0031`, `build-0032`, `build-0037`, `disc-0020`, `disc-0021`, `graph-0041`.
 - Eleven belong to the domain layer (site vocabulary, domain keys, warrants, contexts, crosswalks, SHACL), which only the engine checks in 1.1: `fm-0022` to `fm-0025`, `fm-0027`, `graph-0042`, `graph-0044` to `graph-0046`, `links-0018`, `links-0019`.
 
 Eight of the whole-build cases are still checked by this package: the test suite has

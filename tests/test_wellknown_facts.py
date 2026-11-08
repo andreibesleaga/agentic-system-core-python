@@ -257,6 +257,54 @@ def test_a_repeated_header_field_is_read_as_one_joined_value():
     assert fields == {"link": "<a>; rel=x, <b>; rel=y", "etag": '"e"'}
 
 
+def test_a_repeated_single_value_field_keeps_its_first_line_as_node_does():
+    # Node's HTTP reader drops a repeat of these fields (the engine's checker sees the
+    # first line); measured on Node 24.18.0 for all eighteen.
+    pairs = []
+    for name in sorted(net.FIRST_LINE_ONLY):
+        pairs += [(name.title(), "a"), (name, "b")]
+    fields = net._header_fields(pairs)
+    assert fields == {name: "a" for name in net.FIRST_LINE_ONLY}
+    assert len(net.FIRST_LINE_ONLY) == 18
+    linkset = 'application/linkset+json; profile="https://w3id.org/agentic-system-core/profile"'
+    fields = net._header_fields([("Content-Type", linkset), ("Content-Type", "text/plain"),
+                                 ("Location", "https://a.example/"), ("Location", "/x")])
+    assert fields == {"content-type": linkset, "location": "https://a.example/"}
+
+
+def _with_a_directory(tmp_path, name, target):
+    """The fixture ``name`` copied, its file ``target`` replaced by a directory."""
+    import shutil
+    copy = tmp_path / name
+    shutil.copytree(str(WELLKNOWN / name), str(copy))
+    (copy / target).unlink()
+    (copy / target).mkdir()
+    return str(copy / ".well-known" / "knowledge-linkset")
+
+
+@pytest.mark.parametrize("level", [0, 2])
+def test_a_card_target_that_is_a_directory_is_a_card_not_served(tmp_path, level):
+    # As the engine: the read fails, so the declared card is not served (a warning).
+    result, _ = wellknown.validate(
+        _with_a_directory(tmp_path, "card-served", ".well-known/agent-card.json"), level=level)
+    assert result["status"] == "pass"
+    assert [(one["code"], one["severity"]) for one in result["findings"]] == [
+        ("AGSC-E210", "warn")]
+
+
+def test_a_digest_target_that_is_a_directory_is_not_found_on_disk(tmp_path):
+    # llms.txt as a directory: the digest of the alternate link cannot be checked,
+    # AGSC-E901, as for a document path that names a directory.  The engine's tool
+    # reports Node's own "EISDIR" here instead of a registered code; recorded as an
+    # engine defect, this package keeps the registered AGSC-E901.
+    result, _ = wellknown.validate(_with_a_directory(tmp_path, "card-served", "llms.txt"),
+                                   level=2)
+    assert result["status"] == "fail"
+    assert [(one["code"], one["severity"]) for one in result["findings"]] == [
+        ("AGSC-E901", "error")]
+    assert "target not found on disk: /llms.txt" in result["findings"][0]["message"]
+
+
 def _cli(argv):
     import io
     out, err = io.StringIO(), io.StringIO()

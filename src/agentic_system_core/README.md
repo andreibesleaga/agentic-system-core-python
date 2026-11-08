@@ -15,7 +15,7 @@ and hands every other verb to the Node engine. Standard library only.
 | `signposting.py` | the Signposting links of `/` (AGSC-06-40), the licence URL (AGSC-06-44) and the home page's Dataset block (AGSC-06-41), as data |
 | `catalogue.py`, `agentcard.py` | the opt-in `/.well-known/ard.json` and `ai-catalog.json` (AGSC-06-42) and the A2A agent card (AGSC-06-34), as bytes |
 | `vectors.py` | the conformance-vector checker, the runner, and the specification index |
-| `areas/` | one handler per vector area this package runs natively (`discovery_web.py` holds the web-connection cases disc-0026 to disc-0031 and disc-0033, by vector id), and `build_tree.py`, which checks the files a whole build wrote against `build-0020` to `build-0028` |
+| `areas/` | one handler per vector area this package runs natively (`discovery_web.py` holds the web-connection cases disc-0026 to disc-0031 and disc-0033, by vector id), `build_tree.py`, which checks the files a whole build wrote against `build-0020` to `build-0028`, and `_expected_reads.py`, the guard that fails a pass which left a member of `expected` unread, as the engine's handlers are guarded |
 | `reader.py` | the reading API: a discovery document, its links, digests, chunks and graph |
 | `diagnostics.py` | the diagnostics envelope and its findings |
 | `jcs.py` | canonical JSON (RFC 8785) and the strict I-JSON reader |

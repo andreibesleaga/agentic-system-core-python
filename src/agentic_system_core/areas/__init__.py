@@ -16,7 +16,10 @@ rule text of the specification:
 * ``build`` — the search index and tokenizer, fragments, headers,
   ``security.txt``, the content version and the ``/now/`` line.
 * ``discovery`` — ``/llms.txt``, ``/llms-full.txt``, reachability, sitemap and
-  robots facts, and the link set.
+  robots facts, the link set, and the web connection of a node.
+
+Every handler is guarded as the engine's are: a pass that left a member of a case's
+``expected`` unread is a fail (``_expected_reads``).
 
 ``build_tree`` is not an area runner: it checks the nine ``build`` cases that need a
 whole build (build-0020 to build-0028) against the files another writer built.
@@ -32,6 +35,7 @@ which the engine alone checks in 1.1), each with its reason, and the few cases o
 an area not run here whose reason is narrower than the area's.
 """
 
+from ._expected_reads import guarded
 from .build_area import run as _run_build
 from .discovery_area import run as _run_discovery
 from .frontmatter_area import run as _run_frontmatter
@@ -45,6 +49,9 @@ from .slug_area import run as _run_slug
 DOMAIN_LAYER = "domain layer: engine only in 1.1"
 _NO_HTML = "needs the HTML page writer of a full build (AGSC-06-38); this package writes no HTML"
 _QUERY_PAGE = "needs the engine's build and the query page (Level 3)"
+_WHOLE_LINK_TABLE = ("needs the engine's writer of the whole link table of AGSC-06-08 "
+                     "(surfaces, contribute, successor, related-system and typed peer links); "
+                     "this package's link-set writer covers part of it")
 
 #: vector id -> why this package does not run it: cases of the seven areas whose input
 #: shape the handler could read but whose subject is a writer or a layer this package
@@ -58,6 +65,8 @@ CASES_NOT_RUN = {
     "build-0031": _NO_HTML,
     "build-0032": _NO_HTML,
     "build-0037": "needs the chunk writer of a full build (/chunks.jsonl, /chunks-index.toon)",
+    "disc-0020": _WHOLE_LINK_TABLE,
+    "disc-0021": _WHOLE_LINK_TABLE,
     "disc-0032": ("needs a whole build of the minimal fixture: it reads every file the engine "
                   "writes, the HTML home page among them, for the PROV-O terms (AGSC-06-41); "
                   "this package writes no HTML"),
@@ -79,12 +88,15 @@ CASES_NOT_RUN = {
 
 
 def _unless_not_run(runner):
-    """The area runner, behind the ``CASES_NOT_RUN`` table."""
+    """The area runner, behind the ``CASES_NOT_RUN`` table and the guard against a
+    pass that left a member of ``expected`` unread (``_expected_reads``)."""
+    checked = guarded(runner)
+
     def run(vector):
         reason = CASES_NOT_RUN.get(vector.get("id"))
         if reason is not None:
             return {"status": "not-run", "detail": reason}
-        return runner(vector)
+        return checked(vector)
     return run
 
 

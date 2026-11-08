@@ -167,7 +167,11 @@ LEGACY_WELLKNOWN = "/.well-known/agentic-knowledge"
 
 
 def header_set(routes):
-    """The normative header facts for a route set: {pattern: {header: value}}."""
+    """The normative header facts for a route set: {pattern: {header: value}}.
+
+    No ``/query/*`` block: the query page and its WebAssembly policy belong to the
+    engine's Level-3 build, whose cases (build-0029, build-0030) this package does not
+    run, and no case this package runs reads that block."""
     headers = {"/*": {"Content-Security-Policy": CSP}}
     if any(route.startswith("/pages/") and route.endswith(".md") for route in routes):
         headers["/pages/*.md"] = {"Content-Type": MARKDOWN_CONTENT_TYPE}

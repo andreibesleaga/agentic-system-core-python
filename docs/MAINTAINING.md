@@ -20,8 +20,13 @@ README's "What runs here" and "What forwards to Node" sections are the detail.
 Inside the seven areas, a case is reported as not run, with its reason, when it needs
 a whole build (the query page of `build-0029` and `build-0030` among them), a writer
 this package does not carry (HTML pages, the chunk files, the closure file of
-`export --closure`), or the domain layer, which only the engine checks in 1.1; the
-reason of the last is `domain layer: engine only in 1.1`. The web connection of a node
+`export --closure`, the whole link table of AGSC-06-08), or the domain layer (site
+vocabulary, domain keys, warrants, contexts, crosswalks, SHACL), which only the engine
+checks in 1.1; the reason of the last is `domain layer: engine only in 1.1`, and Python
+parity for it is one of the "Ideas after 1.1" of the engine's roadmap. Every handler is
+guarded as the engine's are (`areas/_expected_reads.py`, the twin of the engine's
+`tests/conformance/areas/_expected-reads.js`): a pass that left a member of a case's
+`expected` unread is a fail. The web connection of a node
 (the Signposting links and the Dataset block of `/`, the two catalogue files, the A2A
 agent card) is written here as data and bytes, though no page is, so its cases
 (`disc-0026` to `disc-0031`) run. The cases and reasons are in
@@ -80,8 +85,9 @@ engine derives and that this package's `graph.jsonld` and per-item files equal t
 engine's for every graph vector that states a dataset. `tests/test_build_cross_check.py`
 has the engine build the Bundle of each of `build-0020` to `build-0028`, the way the
 engine's own handler does, and `agentic_system_core/areas/build_tree.py` checks every
-expectation of the vector against the files written. `run-vectors` still reports those
-nine cases as not run, because this package writes no site.
+expectation of the vector against the files written (`build-0024` is withdrawn in 1.1
+and skipped with that reason). `run-vectors` still reports these cases as not run,
+because this package writes no site.
 
 ## Tests
 
@@ -106,6 +112,10 @@ description. In short:
 - `ruff and mypy (Python 3.13)` runs `ruff check --select E4,E7,E9,F src tests` and
   `mypy src/agentic_system_core tests` at exact pins.
 - The engine is taken at `ENGINE_REF` (`main`) unless a manual run names another ref.
+  While this package follows an engine version that is not yet on the engine's `main`,
+  a push runs against the older engine and the drift and equivalence tests fail: run the
+  workflow by hand with `engine_ref` set to the engine's branch of that version before
+  the pull request is merged.
 - The required checks on `main` are the 3.9 and 3.13 test legs and the ruff and mypy job;
   the 3.14 leg is not required, but a release waits for it.
 - `.github/dependabot.yml` opens one monthly pull request for the pinned actions.

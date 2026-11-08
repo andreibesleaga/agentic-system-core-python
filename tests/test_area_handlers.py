@@ -28,8 +28,7 @@ def _not_run(data):
 
 
 RUN = [one for one in sorted(VECTORS.rglob("*.json"))
-       if json.loads(one.read_bytes().decode("utf-8"))["area"] not in ("jcs", "slug")
-       and not _not_run(json.loads(one.read_bytes().decode("utf-8")))]
+       if not _not_run(json.loads(one.read_bytes().decode("utf-8")))]
 
 
 def test_a_vector_that_needs_a_whole_build_is_reported_not_run():
@@ -105,6 +104,76 @@ def test_the_portable_pattern_case_asserts_lookahead_in_either_polarity():
     assert "lookahead" in result["detail"]
 
 
+def test_the_portable_pattern_case_asserts_the_engine_features_it_states():
+    # slug-0006: the non-portable features the pattern uses (none), as the engine's
+    # handler reads them from the pattern source; a case stating one fails.
+    data = vector("slug-0006")
+    assert data["expected"]["engine_features_used"] == []
+    mutated = copy.deepcopy(data)
+    mutated["expected"]["engine_features_used"] = ["lookahead"]
+    result = AREA_RUNNERS["slug"](mutated)
+    assert result["status"] == "fail", result
+    assert "engine-features-used" in result["detail"]
+
+
+@pytest.mark.parametrize("source, used", [
+    ("^[a-z0-9]+(?:-[a-z0-9]+)*$", []),
+    ("^(?=a)(?<!b)\\1(?<n>x)(?>y)a++\\u0041\\p{L}$",
+     ["lookahead", "lookbehind", "backreference", "named group", "atomic group",
+      "possessive quantifier", "unicode escape", "property escape"]),
+])
+def test_the_non_portable_features_are_named_as_the_engine_names_them(source, used):
+    from agentic_system_core.areas import slug_area
+    assert slug_area.features_used(source) == used
+
+
+def test_a_pass_that_left_an_expected_member_unread_is_a_fail():
+    # The engine's guard (tests/conformance/areas/_expected-reads.js): a handler that
+    # never read a member of `expected` asserted nothing about it.
+    from agentic_system_core.areas._expected_reads import guarded
+
+    def reads_a(data):
+        return {"status": "pass" if data["expected"]["a"] == 1 else "fail", "detail": ""}
+
+    assert guarded(reads_a)({"id": "x-0001", "expected": {"a": 1}})["status"] == "pass"
+    result = guarded(reads_a)({"id": "x-0001", "expected": {"a": 1, "b": 2}})
+    assert result == {"status": "fail", "detail": 'x-0001: no branch of the handler reads "b"'}
+    nothing = guarded(lambda data: {"status": "pass", "detail": ""})({"id": "x-0002",
+                                                                       "expected": {}})
+    assert nothing["status"] == "fail" and "states no expected member" in nothing["detail"]
+    # Presence tests, `get` and listing the members count as reads, as in the engine.
+    for handler in (lambda data: "a" in data["expected"], lambda data: data["expected"].get("a"),
+                    lambda data: list(data["expected"]), lambda data: dict(data["expected"]),
+                    lambda data: data["expected"].keys(), lambda data: data["expected"].items(),
+                    lambda data: data["expected"].values()):
+        def run(data, handler=handler):
+            handler(data)
+            return {"status": "pass", "detail": ""}
+        assert guarded(run)({"id": "x-0003", "expected": {"a": 1}})["status"] == "pass"
+    # A fail and a not-run pass through unchanged, and the vector is not changed.
+    own = {"status": "fail", "detail": "own"}
+    case = {"id": "x-0004", "expected": {"a": 1}}
+    assert guarded(lambda data: own)(case) is own
+    assert guarded(lambda data: {"status": "not-run", "detail": "r"})(case)["status"] == "not-run"
+    assert type(case["expected"]) is dict
+    # A case whose `expected` is not an object is the handler's to judge.
+    assert guarded(lambda data: {"status": "pass", "detail": ""})(
+        {"id": "x-0005", "expected": None})["status"] == "pass"
+
+
+@pytest.mark.parametrize("index", [0, 1, 2, 3])
+def test_a_forbidden_form_the_handler_does_not_know_fails(index):
+    # graph-0018: each entry of `forbidden` is a prose statement of a form the rules
+    # exclude, checked by its own reading; an entry no reading knows fails, as in the
+    # engine's `forbiddenCheck`.
+    data = vector("graph-0018")
+    assert AREA_RUNNERS["graph"](data)["status"] == "pass"
+    data["expected"]["forbidden"][index] = "zz a clause no handler knows"
+    result = AREA_RUNNERS["graph"](data)
+    assert result["status"] == "fail", result
+    assert "does not implement that clause" in result["detail"]
+
+
 @pytest.mark.parametrize("area", ["build", "discovery", "frontmatter", "graph"])
 def test_an_input_shape_no_handler_knows_fails(area):
     result = AREA_RUNNERS[area]({"expected": {}, "input": {"zz": 1}})
@@ -159,6 +228,7 @@ def test_the_links_area_reports_errors_on_a_clean_case():
 @pytest.mark.parametrize("identifier, reason", [
     ("build-0031", "writes no HTML"), ("build-0032", "writes no HTML"),
     ("build-0037", "chunk"),
+    ("disc-0020", "whole link table"), ("disc-0021", "whole link table"),
     ("fm-0022", "domain layer: engine only in 1.1"),
     ("graph-0044", "domain layer: engine only in 1.1"),
     ("links-0019", "domain layer: engine only in 1.1"),

@@ -41,7 +41,7 @@ flowchart TD
     wellknown --> net["net.py<br/>guarded HTTP reader,<br/>request budget"]
     wellknown --> facts["wellknown_facts.py<br/>chunk, ledger, card, home-link checks"]
     facts --> net
-    vectors --> areas["areas/<br/>one handler per area"]
+    vectors --> areas["areas/<br/>one handler per area,<br/>each behind the expected-reads guard"]
     vectors --> index[("data/spec-index.json")]
     context --> published[("data/context.jsonld")]
 
@@ -89,9 +89,14 @@ The relation table of AGSC-03-01 has one source in the package: `relations.py` r
 needs a key, an inverse or a property takes it from there (`tests/test_architecture.py`
 fails when a module spells out a computed inverse name).
 
-`areas/build_tree.py` checks the files a whole build wrote against the nine `build`
-cases that need one (`build-0020` to `build-0028`). It builds nothing: the caller passes
-a function that runs a build, and the test suite passes one that runs the engine's.
+`areas/build_tree.py` checks the files a whole build wrote against the `build` cases
+that need one (`build-0020` to `build-0028`, less `build-0024`, withdrawn in 1.1). It
+builds nothing: the caller passes a function that runs a build, and the test suite
+passes one that runs the engine's.
+
+Every area handler runs behind `areas/_expected_reads.py`, the twin of the engine's
+guard: a pass that left a member of a case's `expected` unread is turned into a fail,
+so a vector cannot pass on an expectation no code compared.
 
 `net.py` is the only module that opens a connection (`tests/test_architecture.py`
 fails otherwise): every request of a run passes its address classification, its caps,

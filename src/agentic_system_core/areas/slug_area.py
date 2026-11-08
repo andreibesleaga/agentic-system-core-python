@@ -6,9 +6,31 @@ Every expectation follows from the vector's own input: a list of candidate
 strings and the verdicts, or a list of file paths and the collision code.
 """
 
+import re
+
 from .. import frontmatter as frontmatter_module
 from .. import slug as slug_module
 from ._assert import checks, shown
+
+#: The regular-expression features outside the subset RE2, Go ``regexp``, Rust
+#: ``regex`` and PCRE2 share (the porting notes of the engine's
+#: ``tests/vectors/README.md``), each with the form that gives it away in a pattern's
+#: source, in the engine's order and under its names (``tests/conformance/areas/slug.js``).
+NON_PORTABLE_FEATURES = (
+    ("lookahead", re.compile(r"\(\?[=!]")),
+    ("lookbehind", re.compile(r"\(\?<[=!]")),
+    ("backreference", re.compile(r"\\[1-9]|\\k<")),
+    ("named group", re.compile(r"\(\?<[A-Za-z]")),
+    ("atomic group", re.compile(r"\(\?>")),
+    ("possessive quantifier", re.compile(r"[*+?}]\+")),
+    ("unicode escape", re.compile(r"\\u")),
+    ("property escape", re.compile(r"\\[pP]\{")),
+)
+
+
+def features_used(source):
+    """The non-portable features one pattern source uses, by name (slug-0006)."""
+    return [name for name, form in NON_PORTABLE_FEATURES if form.search(source)]
 
 
 def run(vector):
@@ -30,6 +52,10 @@ def run(vector):
             used = "(?=" in slug_module.SLUG_PATTERN or "(?!" in slug_module.SLUG_PATTERN
             items.append(("lookahead", used is expected["lookahead"],
                           slug_module.SLUG_PATTERN))
+        if isinstance(expected.get("engine_features_used"), list):
+            found = features_used(slug_module.SLUG_PATTERN)
+            items.append(("engine-features-used", found == expected["engine_features_used"],
+                          shown(found)))
         return checks(items)
 
     # Uniqueness over a list of paths.

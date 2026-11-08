@@ -106,6 +106,20 @@ def test_both_checkers_agree(args):
     assert node_shape == python_shape
 
 
+@pytest.mark.parametrize("level", ["0", "1", "2", "3"])
+def test_both_checkers_agree_when_the_card_target_is_a_directory(tmp_path, level):
+    # A target path that names a directory is read as a target that is not served.
+    copy = tmp_path / "card-served"
+    shutil.copytree(str(WELLKNOWN / "card-served"), str(copy))
+    card = copy / ".well-known" / "agent-card.json"
+    card.unlink()
+    card.mkdir()
+    args = [str(copy / ".well-known" / "knowledge-linkset"), "--level", level, "--json"]
+    python_code, python_shape = python(args)
+    assert python_shape is not None
+    assert (python_code, python_shape) == node(args)
+
+
 #: The build instant of every node built here (docs/MAINTAINING.md, the reference builds).
 SOURCE_DATE_EPOCH = "1767225600"
 DEMO_NODE = NEIGHBOURS / "agsc-demo-node"

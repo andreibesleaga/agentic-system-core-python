@@ -224,14 +224,28 @@ def fetch_once(href, dev=False, cap=MAX_BYTES):
         connection.close()
 
 
+#: The fields of which Node's HTTP reader keeps the first line and drops a repeat
+#: (``IncomingMessage``; measured on Node 24.18.0), so the engine's checker reads
+#: the first ``Content-Type``, ``ETag`` or ``Location`` a response sends.
+FIRST_LINE_ONLY = frozenset((
+    "age", "authorization", "content-length", "content-type", "etag", "expires", "from",
+    "host", "if-modified-since", "if-unmodified-since", "last-modified", "location",
+    "max-forwards", "proxy-authorization", "referer", "retry-after", "server", "user-agent"))
+
+
 def _header_fields(pairs):
-    """The response header fields by lower-case name; a field sent more than once is
-    one value, its lines joined with ", " (RFC 9110 section 5.3), as Node's reader
-    gives it to the engine's checker, so a ``Link`` split over two lines is read whole."""
+    """The response header fields by lower-case name, as Node's reader gives them to
+    the engine's checker: a field of ``FIRST_LINE_ONLY`` sent more than once is its
+    first line; any other is one value, its lines joined with ", " (RFC 9110 section
+    5.3), so a ``Link`` split over two lines is read whole.  (Node joins ``Cookie``
+    with "; " and lists ``Set-Cookie``; the checker reads neither.)"""
     out = {}
     for name, value in pairs:
         key = name.lower()
-        out[key] = value if key not in out else out[key] + ", " + value
+        if key not in out:
+            out[key] = value
+        elif key not in FIRST_LINE_ONLY:
+            out[key] = out[key] + ", " + value
     return out
 
 

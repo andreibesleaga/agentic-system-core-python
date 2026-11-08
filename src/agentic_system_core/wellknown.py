@@ -190,7 +190,9 @@ class Source(object):
         candidate = os.path.normpath(os.path.join(self.site_root, "." + path))
         if not candidate.startswith(self.site_root + os.sep):
             raise TransportError("AGSC-E902", "path escapes the site root: %s" % href)
-        if not os.path.exists(candidate):
+        # A directory is not a target: the engine reads it as a target it cannot
+        # read, and a document path that names one is AGSC-E901 in both tools.
+        if not os.path.isfile(candidate):
             raise TransportError("AGSC-E901", "target not found on disk: %s" % path)
         self.reads += 1
         with open(candidate, "rb") as handle:
@@ -727,10 +729,11 @@ def _check_surface(target, href, parsed, anchor, source, report, document):
     target and the target of public ``chunks`` must resolve; the ``chunks`` of a
     restricted node declare ``credential`` and are not served unauthenticated
     (AGSC-11-20), so they are not read."""
-    declared = target.get("agsc-surface")
+    surface_values = target.get("agsc-surface")
     access = target.get("agsc-access")
     version = target.get("agsc-surface-version")
-    name = declared[0] if isinstance(declared, list) and len(declared) == 1 else None
+    name = surface_values[0] if isinstance(surface_values, list) and len(surface_values) == 1 \
+        else None
     if name is None:
         report("AGSC-E210",
                "rel#surface %s: agsc-surface must carry exactly one value (AGSC-11-16)" % href)
@@ -755,11 +758,11 @@ def _check_surface(target, href, parsed, anchor, source, report, document):
     if name == "llms-txt" and parsed.pathname != "/llms.txt" \
             and not parsed.pathname.endswith("/llms.txt"):
         report("AGSC-E210", "rel#surface llms-txt must target /llms.txt (AGSC-11-16)")
-    declared, level = document
+    declared_version, level = document
     public_chunks = name == "chunks" and not (isinstance(access, list) and access
                                               and access[0] == "credential")
     if public_chunks:
-        chunk_facts_missing(target, href, declared, level, report)
+        chunk_facts_missing(target, href, declared_version, level, report)
     if name == "llms-txt" or public_chunks:
         try:
             data = source.resolve_target(href, anchor)
