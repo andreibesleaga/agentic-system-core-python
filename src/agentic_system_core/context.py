@@ -29,9 +29,12 @@ from .jcs import canonicalize
 from .rdf import (ASC, DCTERMS, IRI, PREFIXES, PROV, RDF_TYPE, RDFS, SCHEMA, SKOS, XSD,
                   Literal)
 
-#: AGSC-05-09: the specification's persistent versioned context URL.
-ONTOLOGY_VERSION = "1.0.0"
-CONTEXT_URL = "https://w3id.org/agentic-system-core/ns/%s/context.jsonld" % ONTOLOGY_VERSION
+#: AGSC-05-09 (amended for 1.1): the version in the persistent context address, a
+#: constant ``1.0.0`` at every version 1.x, never the ontology version of AGSC-05-25, so
+#: raising the ontology version changes no byte of any ``graph.jsonld`` (graph-0043; the
+#: engine's ``CONTEXT_VERSION`` of ``src/knowledge/jsonld.js``).
+CONTEXT_VERSION = "1.0.0"
+CONTEXT_URL = "https://w3id.org/agentic-system-core/ns/%s/context.jsonld" % CONTEXT_VERSION
 
 _NAMESPACES = dict(PREFIXES)
 _PUBLISHED = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "context.jsonld")

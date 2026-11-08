@@ -291,8 +291,9 @@ def test_a_profile_link_header_on_the_wrong_media_type_is_still_reported():
 
     result, _ = wellknown.validate("https://node.example/.well-known/knowledge-linkset",
                                    allow_network=True, fetcher=fetcher)
-    assert codes(result) == ["AGSC-E201"]
-    assert "is not application/linkset+json" in result["findings"][0]["message"]
+    errors = [one for one in result["findings"] if one["severity"] == "error"]
+    assert [one["code"] for one in errors] == ["AGSC-E201"]
+    assert "is not application/linkset+json" in errors[0]["message"]
 
 
 PROFILE_LINK = ('<https://w3id.org/agentic-system-core/profile/agentic-knowledge>; '
@@ -414,6 +415,9 @@ def test_the_origin_judged_is_the_one_finally_read_after_redirects():
 
 GOOD_URL = "https://node.example/.well-known/knowledge-linkset"
 NO_CACHE_PATHS = ("/.well-known/knowledge-linkset", "/now.md", "/ledger.jsonl")
+#: The home page, whose Link header the checker reads (AGSC-06-25, AGSC-06-40).
+HOME_URL = "https://node.example/"
+DESCRIBEDBY = '</.well-known/knowledge-linkset>; rel="describedby"; type="application/linkset+json"'
 
 
 def _good_served():
@@ -424,6 +428,7 @@ def _good_served():
         "https://node.example/llms.txt": (WELLKNOWN / "good" / "llms.txt").read_bytes(),
         "https://node.example/graph.jsonld": (WELLKNOWN / "good" / "graph.jsonld").read_bytes(),
         "https://node.example/ledger.jsonl": (WELLKNOWN / "good" / "ledger.jsonl").read_bytes(),
+        HOME_URL: b"<!doctype html>\n",
     }
 
 
@@ -439,6 +444,8 @@ def _full_headers(href):
                                    'agentic-system-core/profile/agentic-knowledge"')
     if href.endswith(NO_CACHE_PATHS):
         headers["cache-control"] = "no-cache"
+    if href == HOME_URL:
+        headers["link"] = DESCRIBEDBY
     return headers
 
 
@@ -558,7 +565,8 @@ def test_a_restricted_node_is_asked_the_cross_origin_pair_on_its_document_alone(
     }
     served = {GOOD_URL: json.dumps({"linkset": [context]}, separators=(",", ":"),
                                    sort_keys=True).encode() + b"\n",
-              "https://node.example/graph.jsonld": graph, "https://node.example/llms.txt": llms}
+              "https://node.example/graph.jsonld": graph, "https://node.example/llms.txt": llms,
+              HOME_URL: b"<!doctype html>\n"}
 
     def gated(href, headers):
         if href != GOOD_URL:

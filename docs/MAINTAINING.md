@@ -18,9 +18,13 @@ README's "What runs here" and "What forwards to Node" sections are the detail.
 [ARCHITECTURE.md](ARCHITECTURE.md) draws the parts and how they call each other.
 
 Inside the seven areas, a case is reported as not run, with its reason, when it needs
-a whole build, a writer this package does not carry (HTML pages, the chunk files), or
-the domain layer, which only the engine checks in 1.1; the reason of the last is
-`domain layer: engine only in 1.1`. The cases and reasons are in
+a whole build (the query page of `build-0029` and `build-0030` among them), a writer
+this package does not carry (HTML pages, the chunk files, the closure file of
+`export --closure`), or the domain layer, which only the engine checks in 1.1; the
+reason of the last is `domain layer: engine only in 1.1`. The web connection of a node
+(the Signposting links and the Dataset block of `/`, the two catalogue files, the A2A
+agent card) is written here as data and bytes, though no page is, so its cases
+(`disc-0026` to `disc-0031`) run. The cases and reasons are in
 `src/agentic_system_core/areas/__init__.py` (`CASES_NOT_RUN`) and the handlers, and
 the README lists them by name; `tests/test_readme_counts.py` keeps the two in step.
 
@@ -29,6 +33,17 @@ the README lists them by name; `tests/test_readme_counts.py` keeps the two in st
 `tests/test_equivalence.py` runs this package's discovery-file checker and the engine's
 `tools/validate-wellknown` over the same documents, at every Level, with and without a
 peer, and compares the status, the counts and each finding's position and code. The
+documents are every case under `tests/fixtures/wellknown/`, the built files of the two
+sites when they are here, and two nodes the engine builds for the run with
+`SOURCE_DATE_EPOCH=1767225600`: its own `tests/fixtures/minimal` and, when it is checked
+out beside this repository, `../agsc-demo-node` (copied with its git history, so the
+build writes the ledger and the chunk and ledger facts of AGSC-06-44 that both checkers
+recompute). The fixture cases of the 1.1 checks (`chunks-*`, `ledger-length-wrong`,
+`card-*`) are the documents and files of vector disc-0033, and variants of them with one
+fact changed; the checks of a URL alone (the `Link` header of `/`, the response headers,
+the request budget) are stated by `tests/test_wellknown_facts.py` and
+`tests/test_wellknown.py` with an injected fetcher, because the proof opens no
+connection. The
 cross-runner test (`tests/test_vector_equivalence.py`) runs the engine's vector runner
 over its live set and requires both runners to agree on every vector of the seven areas.
 Both need the engine checked out beside this repository at `../agentic-system-core` and

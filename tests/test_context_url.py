@@ -1,11 +1,13 @@
 """The versioned context address this package writes (AGSC-05-09, AGSC-05-25).
 
-AGSC-05-09 names one persistent context address per vocabulary version,
-``https://w3id.org/agentic-system-core/ns/<version>/context.jsonld``, and
-AGSC-05-25 takes the version from the vocabulary's ``owl:versionIRI``. The
-engine derives the address from ``ontology/agsc.ttl``; this package carries it
-as a constant. When the engine is beside this repository, the constant is
-compared with the address the engine's vocabulary gives.
+AGSC-05-09 names one persistent context address,
+``https://w3id.org/agentic-system-core/ns/<version>/context.jsonld``.  As amended for
+1.1, the version in it is a constant ``1.0.0`` at every version 1.x and no longer the
+ontology version that AGSC-05-25 takes from ``owl:versionIRI`` (vector graph-0043):
+raising the ontology version changes no byte of any ``graph.jsonld``.  The engine holds
+the constant as ``CONTEXT_VERSION`` in ``src/knowledge/jsonld.js``; this package as
+``context.CONTEXT_VERSION``.  When the engine is beside this repository, the two are
+compared.
 
 No network, no clock: the test reads one file of the engine checkout.
 """
@@ -18,22 +20,25 @@ from agentic_system_core import context
 from agentic_system_core.rdf import IRI, RDF_TYPE
 from conftest import ENGINE
 
-ONTOLOGY = ENGINE / "ontology" / "agsc.ttl"
+JSONLD = ENGINE / "src" / "knowledge" / "jsonld.js"
 NAMESPACE = "https://w3id.org/agentic-system-core/ns"
 
 
-def _version_iri():
-    text = ONTOLOGY.read_text(encoding="utf-8")
-    found = re.findall(r"^\s*owl:versionIRI <([^>]+)>\s*[;.]\s*$", text, re.M)
-    assert len(found) == 1, "the engine's vocabulary carries %d owl:versionIRI" % len(found)
+def _engine_context_version():
+    text = JSONLD.read_text(encoding="utf-8")
+    found = re.findall(r"^const CONTEXT_VERSION = '([^']+)';$", text, re.M)
+    assert len(found) == 1, "the engine's jsonld.js states CONTEXT_VERSION %d times" % len(found)
     return found[0]
 
 
-@pytest.mark.skipif(not ONTOLOGY.is_file(), reason="the engine is not beside this repository")
-def test_the_context_address_is_the_one_the_engine_vocabulary_gives():
-    version_iri = _version_iri()
-    assert version_iri.startswith(NAMESPACE + "/")
-    assert context.CONTEXT_URL == version_iri + "/context.jsonld"
+@pytest.mark.skipif(not JSONLD.is_file(), reason="the engine is not beside this repository")
+def test_the_context_address_names_the_engines_context_version():
+    assert context.CONTEXT_VERSION == _engine_context_version()
+    assert context.CONTEXT_URL == "%s/%s/context.jsonld" % (NAMESPACE, context.CONTEXT_VERSION)
+
+
+def test_the_context_version_is_the_constant_of_every_1x_version():
+    assert context.CONTEXT_VERSION == "1.0.0"
 
 
 def test_the_address_is_the_persistent_form_of_the_rule():

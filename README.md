@@ -81,6 +81,14 @@ same MAJOR may use relations and attributes this version does not define: they a
 ignored with the warning `AGSC-E506`, never reported as errors; a document of
 another MAJOR gets no such tolerance (AGSC-00-21, AGSC-09-93).
 
+From 1.1, at Level 2 and above, the chunks surface link of a document that declares
+1.1.0 or later must carry `digest`, `agsc-chunk-count` and `agsc-chunk-set`
+(`AGSC-E202` for each one missing), and the count and the set commitment are
+recomputed over the chunk lines read, a sharded file's shards included (`AGSC-E201`
+when they differ); an `agsc-ledger-length` is compared with the entries of the ledger
+read (AGSC-06-44, AGSC-09-93). At every Level, an `a2a-card` declared on the node's own
+origin must be a card the node serves, else the warning `AGSC-E210` (AGSC-11-16).
+
 When the document is a file inside a `.well-known/` directory, every
 same-origin target is resolved on disk and its digest is verified against the
 real bytes — so a build output is checked completely with no network at all.
@@ -101,11 +109,18 @@ the last byte, and a cap of one mebibyte on the discovery document and of
 headers of the document and of every same-origin public file it fetches and
 checks the rules on cross-origin reading and caching (AGSC-11-03, AGSC-11-05):
 a missing header is `AGSC-E202`, a forbidden one `AGSC-E201`, errors at Level 2
-and above and warnings below (AGSC-09-93).
+and above and warnings below (AGSC-09-93); only a versioned copy under
+`/ns/<x.y.z>/` may be `immutable` (AGSC-06-06). It reads the `Link` header of the
+node's home page `/` too, which should carry the `describedby` link to the discovery
+document: its absence is the warning `AGSC-E202` (AGSC-06-25, AGSC-06-40). Every
+request of a run, redirects included, counts against one budget, 500 by default and
+`--max-requests <1..2000>` to set it; the request past it is `AGSC-E906`
+(AGSC-11-10(c)).
 
 From Python, `agentic_system_core.wellknown.validate(target, level=2,
 allow_network=True, fetcher=my_fetch)` reads a URL through a fetcher you supply
-instead of the built-in one. It is called as `my_fetch(url, dev, cap=n)`, where
+instead of the built-in one (`max_requests=n` sets the budget, which each call
+spends once). It is called as `my_fetch(url, dev, cap=n)`, where
 `cap` is the byte cap of that read — `1048576` for the discovery document,
 `33554432` for any other file — and it returns `(final_url, headers, body)`:
 the URL after redirects, the response headers as a dict with lower-case names,
@@ -150,14 +165,14 @@ rule text of the specification alone, in the standard library:
 | `slug` | the slug grammar and uniqueness |
 | `jcs` | RFC 8785 canonical JSON with NFC before sorting |
 | `links` | the fourteen Link keys and their inverses (the relation table of AGSC-03-01, shipped as data derived from the engine), the cycle and cluster-tree checks, the four warnings about what a Link says (a self-link, two relations a pair cannot both hold, a target of an unexpected kind, superseding a stable item: AGSC-03-23 to AGSC-03-26), heading anchors, and inline-link resolution over a small CommonMark 0.31.2 scanner (headings and inline links only, outside code; its subset is written down in `agentic_system_core/markdown.py`) |
-| `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, `graph.jsonld` and the per-item `/pages/<slug>.jsonld` files of AGSC-05-09, written with the published context, the JSON-LD context of AGSC-06-32 with the compaction it round-trips, the readings of the Link graph with their reasons (AGSC-05-33), the ten questions of AGSC-05-34, and the SKOS view of AGSC-05-36 |
+| `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, `graph.jsonld` and the per-item `/pages/<slug>.jsonld` files of AGSC-05-09, written with the published context, the JSON-LD context of AGSC-06-32 with the compaction it round-trips, the readings of the Link graph with their reasons (AGSC-05-33), the ten questions of AGSC-05-34, the SKOS view of AGSC-05-36, and the context address that stays `1.0.0` whatever the ontology version (AGSC-05-09, graph-0043) |
 | `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt` (with a declared disclosure page), the content version, the `/now/` line (a restricted node's too) and the staleness comparison |
-| `discovery` | `/llms.txt` and `/llms-full.txt` byte for byte (the 1.1 layout, a restricted node's header too), reachability, the sitemap and robots facts, the link-set writer, and the discovery-document checks including the restricted-node rule of AGSC-11-20 |
+| `discovery` | `/llms.txt` and `/llms-full.txt` byte for byte (the 1.1 layout, a restricted node's header too), reachability, the sitemap and robots facts, the link-set writer, the discovery-document checks including the restricted-node rule of AGSC-11-20 and the chunk facts of AGSC-06-44, and the web connection of a node as data and bytes: the Signposting links of `/` (AGSC-06-40), the home page's Dataset block (AGSC-06-41), the opt-in `ard.json` and `ai-catalog.json` (AGSC-06-42) and the A2A agent card (AGSC-06-34) |
 
 Vectors of these seven areas that `run-vectors` reports as not run, each with its reason:
 
 - Seventeen need a whole Bundle build: `build-0015`, `build-0017`, `build-0020` to `build-0023`, `build-0025` to `build-0030`, `build-0033`, `build-0034`, `disc-0018`, `disc-0032`, `graph-0027`.
-- Three need a writer this package does not carry, the HTML item pages or the chunk files: `build-0031`, `build-0032`, `build-0037`.
+- Four need a writer this package does not carry, the HTML item pages, the chunk files or the closure file of `export --closure` (with the OWL 2 RL rules of AGSC-05-37): `build-0031`, `build-0032`, `build-0037`, `graph-0041`.
 - Eleven belong to the domain layer (site vocabulary, domain keys, warrants, contexts, crosswalks, SHACL), which only the engine checks in 1.1: `fm-0022` to `fm-0025`, `fm-0027`, `graph-0042`, `graph-0044` to `graph-0046`, `links-0018`, `links-0019`.
 
 Eight of the whole-build cases are still checked by this package: the test suite has
@@ -244,8 +259,9 @@ The discovery-file checker is meant to give the same verdict as the engine's
 `tools/validate-wellknown` on the same input. The test suite proves it: both
 tools are run over the same documents — the fixture set, a document taken from
 the engine's own conformance vectors, the built discovery files of two live
-sites and a set of deliberately broken files — at every Level, with and without
-a peer, and the status, the counts and the position and code of every finding
+sites, two nodes the engine builds for the run (its minimal fixture and the
+demonstration node) and a set of deliberately broken files — at every Level, with
+and without a peer, and the status, the counts and the position and code of every finding
 are compared. Message text is not compared: the specification leaves a message
 unspecified so it can be translated, and pins the code. That test is skipped,
 with a message saying so, when Node or the engine checkout is not present.

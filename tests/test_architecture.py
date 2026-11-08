@@ -1,10 +1,12 @@
 """Fitness functions for the package's shape, read from the source with ``ast``.
 
-Three rules the README and docs/ARCHITECTURE.md state: the package imports nothing but
+Four rules the README and docs/ARCHITECTURE.md state: the package imports nothing but
 the standard library and itself (``dependencies = []``); only ``cli.py`` starts a
 process (it forwards the engine verbs to Node), so a checker of a built tree reads files
-another writer built and never builds one itself; and the relation table of AGSC-03-01
-has one source, ``data/relations.json``, which only ``relations.py`` reads.
+another writer built and never builds one itself; the relation table of AGSC-03-01
+has one source, ``data/relations.json``, which only ``relations.py`` reads; and only
+``net.py`` opens a connection, so every request is guarded and counted against the
+run's request budget (AGSC-11-07 to AGSC-11-10).
 """
 
 import ast
@@ -82,3 +84,38 @@ def test_the_relation_table_has_one_source():
     readers = sorted(str(path.relative_to(PACKAGE)) for path in MODULES
                      if "relations.json" in _string_constants(path))
     assert readers == ["relations.py"]
+
+
+#: The standard-library packages that open a connection: a socket, TLS, an HTTP client,
+#: an event loop's transports, or urllib's opener.
+_NETWORK = ("socket", "ssl", "http", "asyncio")
+
+
+def _network_imports(path):
+    """The connection-opening modules a module imports, by dotted name."""
+    found = set()
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            names = [node.module] + [node.module + "." + alias.name for alias in node.names]
+        else:
+            continue
+        found.update(name for name in names
+                     if name.split(".")[0] in _NETWORK or name == "urllib.request")
+    return found
+
+
+def test_only_the_guarded_reader_opens_a_connection():
+    # AGSC-11-07 to AGSC-11-10: every request goes through net.py, where the address is
+    # classified, the redirects, the deadline and the caps hold, and the run's request
+    # budget is spent (AGSC-11-10(c)); no other module may open a connection of its own.
+    openers = sorted(str(path.relative_to(PACKAGE)) for path in MODULES if _network_imports(path))
+    assert openers == ["net.py"]
+
+
+def test_a_connection_import_would_be_caught(tmp_path):
+    module = tmp_path / "probe.py"
+    module.write_text("import http.client\nfrom urllib import request\nimport json\n",
+                      encoding="utf-8")
+    assert _network_imports(module) == {"http.client", "urllib.request"}

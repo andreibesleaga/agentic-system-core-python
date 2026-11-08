@@ -4,17 +4,24 @@ The Node tool is run through a subprocess, and only here.  When Node or the
 engine checkout is not on this machine the whole module is skipped with a
 message that says so, because a silent skip would look like a pass.
 
+The inputs are every fixture case, the built discovery files of the two sites
+when their checkouts are here, and two nodes the engine builds for the run: its
+own minimal fixture and, when its checkout is beside this one, the demonstration
+node ``agsc-demo-node`` (with its git history, so the build writes the ledger and
+the 1.1 chunk and ledger facts the checkers recompute).
+
 Nothing in this module touches the network: every input is a file on disk.
 """
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 
 import pytest
 
-from conftest import ENGINE, SITE_DOCUMENTS, WELLKNOWN, engine_available
+from conftest import ENGINE, NEIGHBOURS, SITE_DOCUMENTS, WELLKNOWN, engine_available
 
 pytestmark = pytest.mark.skipif(
     not engine_available(),
@@ -97,3 +104,44 @@ def test_both_checkers_agree(args):
     python_code, python_shape = python(args)
     assert node_code == python_code
     assert node_shape == python_shape
+
+
+#: The build instant of every node built here (docs/MAINTAINING.md, the reference builds).
+SOURCE_DATE_EPOCH = "1767225600"
+DEMO_NODE = NEIGHBOURS / "agsc-demo-node"
+
+
+def _build(source, out, ignore=()):
+    """Copy one Bundle and build it with the engine; the discovery file it wrote."""
+    shutil.copytree(str(source), str(out), ignore=shutil.ignore_patterns(*ignore))
+    # The engine refuses an AGSC_* variable it does not know (AGSC-01-37), this suite's
+    # AGSC_ENGINE_DIR among them, and AGSC_DOI would change the bytes: the build sees
+    # the search path, the home folder (git reads it) and the build instant only.
+    environment = {"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", ""),
+                   "SOURCE_DATE_EPOCH": SOURCE_DATE_EPOCH}
+    done = subprocess.run(["node", str(ENGINE / "bin" / "agsc.js"), "build"], cwd=str(out),
+                          capture_output=True, text=True, env=environment)
+    assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
+    return out / "www" / ".well-known" / "knowledge-linkset"
+
+
+@pytest.fixture(scope="module")
+def built_nodes(tmp_path_factory):
+    root = tmp_path_factory.mktemp("built")
+    nodes = {"minimal": _build(ENGINE / "tests" / "fixtures" / "minimal", root / "minimal")}
+    if (DEMO_NODE / "agsc.config.json").is_file():
+        nodes["agsc-demo-node"] = _build(DEMO_NODE, root / "agsc-demo-node", ("www", "dist"))
+    return nodes
+
+
+@pytest.mark.parametrize("node_name", ["minimal", "agsc-demo-node"])
+@pytest.mark.parametrize("level", ["0", "1", "2", "3"])
+def test_both_checkers_agree_on_a_node_the_engine_builds(built_nodes, node_name, level):
+    if node_name not in built_nodes:
+        pytest.skip("the demonstration node is not checked out beside this repository at %s"
+                    % DEMO_NODE)
+    args = [str(built_nodes[node_name]), "--level", level, "--json"]
+    node_code, node_shape = node(args)
+    python_code, python_shape = python(args)
+    assert (node_code, node_shape) == (python_code, python_shape)
+    assert node_shape is not None

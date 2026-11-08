@@ -17,7 +17,18 @@ network at all.
 Given a URL, the response headers of the rules on cross-origin reading
 (AGSC-11-03) and caching (AGSC-11-05) are also checked, on the document and on
 every same-origin public artefact the run fetches: errors at Level 2 and above,
-warnings below (AGSC-09-93, amended 2026-10-06 for 1.0.0).
+warnings below (AGSC-09-93, amended 2026-10-06 for 1.0.0); and the ``Link`` header
+of the node's home page ``/`` is read for the ``describedby`` link to the discovery
+document, whose absence is a warning (AGSC-06-25, AGSC-06-40).  Every request of a
+run counts against one budget, redirects included (``--max-requests``, AGSC-11-10(c)).
+
+From 1.1, at Level 2 and above, the ``digest``, ``agsc-chunk-count`` and
+``agsc-chunk-set`` of the chunks surface link are required of a document of 1.1.0 or
+later and recomputed over the chunk lines read, and an ``agsc-ledger-length`` is
+compared with the ledger read (AGSC-09-93 (b) and (c), AGSC-06-44); at every Level an
+``a2a-card`` declared on the node's own origin is resolved, and a card the node does
+not serve is the warning AGSC-E210 (AGSC-11-16).  Those checks live in
+``wellknown_facts.py``.
 
 Error codes.  Section 9.4 of the specification names no dedicated code for
 these shape checks, so this checker uses the same code for the same fault as the
@@ -46,8 +57,10 @@ import re
 from . import MEDIA_TYPE, PROFILE_URI, REL_BASE, SPEC_VERSION, WELLKNOWN_SUFFIX
 from .diagnostics import envelope, finding
 from .jcs import canonicalize_raw, compare_utf16, parse_ijson, utf16_key
-from .net import MAX_BYTES, TARGET_MAX_BYTES, TransportError
+from .net import MAX_BYTES, TARGET_MAX_BYTES, RequestBudget, TransportError, counted
 from .urls import Url, decoded_path, is_url_argument, resolve
+from .wellknown_facts import (card_target_findings, check_home_link, chunk_facts_findings,
+                              chunk_facts_missing, ledger_length_findings)
 
 VERB = "validate-wellknown"
 
@@ -69,10 +82,11 @@ EXTENSIONS = frozenset([
 #: a newer MINOR may carry others; they are ignored with a warning (AGSC-00-21,
 #: AGSC-09-93).
 KNOWN_ATTRIBUTES = frozenset([
-    "agsc-access", "agsc-bundle-hash", "agsc-bundle-version", "agsc-contribute-mode",
-    "agsc-counts", "agsc-generated-at", "agsc-ledger-head", "agsc-spec-version",
-    "agsc-surface", "agsc-surface-version", "agsc-tombstone", "agsc-visibility", "digest",
-    "hreflang", "media", "profile", "title", "title*", "type",
+    "agsc-access", "agsc-bundle-hash", "agsc-bundle-version", "agsc-chunk-count",
+    "agsc-chunk-set", "agsc-contribute-mode", "agsc-counts", "agsc-generated-at",
+    "agsc-ledger-head", "agsc-ledger-length", "agsc-spec-version", "agsc-surface",
+    "agsc-surface-version", "agsc-tombstone", "agsc-visibility", "digest", "hreflang",
+    "media", "profile", "title", "title*", "type",
 ])
 #: RFC 9264 section 4.2.4.1: the target attributes whose value is a plain string.
 STRING_ATTRIBUTES = frozenset(["type", "title", "media"])
@@ -106,6 +120,8 @@ PUBLIC_ARTEFACT = re.compile(
 NO_CACHE = ("/.well-known/knowledge-linkset", "/now.md", "/ledger.jsonl")
 #: AGSC-11-03: the response headers a public artefact exposes to another origin.
 EXPOSED = ("Link", "ETag", "Content-Type")
+#: AGSC-06-06, AGSC-11-05: the versioned copies, the only routes that may be immutable.
+VERSIONED = re.compile(r"^/ns/\d+\.\d+\.\d+/")
 
 _PRIVATE_SURFACE = re.compile(r"^x-[a-z0-9]+(-[a-z0-9]+)+$")
 _DIGEST = re.compile(r"^sha-256=:[A-Za-z0-9+/]{43}=:$")
@@ -122,7 +138,7 @@ class Source(object):
     """One document to check, with the way its targets are resolved."""
 
     def __init__(self, kind, name, data, headers=None, site_root=None, fetcher=None, dev=False,
-                 retrieved_from=None):
+                 retrieved_from=None, budget=None, site_files=None):
         self.kind = kind
         self.name = name
         #: the URL the document was finally read from, after redirects (AGSC-06-08)
@@ -133,20 +149,32 @@ class Source(object):
         self.fetcher = fetcher
         self.dev = dev
         self.reads = 1
-        #: (final URL, response headers) of every target this run fetched
+        #: the requests the run may still send (AGSC-11-10(c)), shared with its peer
+        self.budget = budget if budget is not None else RequestBudget()
+        #: route -> bytes of a build output held in memory instead of on disk
+        self.site_files = site_files
+        #: (final URL, response headers) of every target whose headers are checked
         self.fetched = []
 
-    def resolve_target(self, href, anchor):
-        """The bytes of one target, or None when it cannot be checked offline."""
+    def resolve_target(self, href, anchor, checked=True):
+        """The bytes of one target, or None when it cannot be checked offline.
+
+        ``checked``: the response headers of a target read from a URL are checked
+        (AGSC-09-93); the engine reads the card, the ledger length and the chunk
+        shards without that check, so those reads pass False."""
         if self.kind == "memory":
             # An in-memory document has no site beside it: every digest target is
             # "not checkable offline", never an I/O error.
             return None
         if self.kind == "url":
             self.reads += 1
-            final, headers, body = self.fetcher(href, self.dev, cap=TARGET_MAX_BYTES)
-            self.fetched.append((final, headers))
+            final, headers, body = counted(self.fetcher, href, self.dev, TARGET_MAX_BYTES,
+                                           self.budget)
+            if checked:
+                self.fetched.append((final, headers))
             return body
+        if self.site_files is not None:
+            return self._resolve_in_memory(href, anchor)
         if self.site_root is None:
             raise TransportError(
                 "AGSC-E901",
@@ -168,6 +196,19 @@ class Source(object):
         with open(candidate, "rb") as handle:
             return handle.read()
 
+    def _resolve_in_memory(self, href, anchor):
+        """A target of a build output held as route -> bytes, read as from disk."""
+        target = Url(href)
+        if target.origin != Url(anchor).origin:
+            return None
+        path = decoded_path(target)
+        if path.endswith("/"):
+            path += "index.html"
+        if path not in self.site_files:
+            raise TransportError("AGSC-E901", "target not found on disk: %s" % path)
+        self.reads += 1
+        return self.site_files[path]
+
 
 def from_value(document, name="(memory)"):
     """An in-memory source; a value is written in its canonical form plus one LF."""
@@ -178,7 +219,16 @@ def from_value(document, name="(memory)"):
     return Source("memory", name, data)
 
 
-def load(target, allow_network=False, fetcher=None, dev=False):
+def from_build(document, files, name="(build)"):
+    """A build output held in memory: the discovery document and the files it links
+    (route -> bytes or text), checked exactly as the same files on disk would be."""
+    held = dict((route, text.encode("utf-8") if isinstance(text, str) else bytes(text))
+                for route, text in files.items())
+    source = from_value(document, name)
+    return Source("file", name, source.data, site_files=held)
+
+
+def load(target, allow_network=False, fetcher=None, dev=False, budget=None):
     """Open a document, from a file always and from a URL only when allowed."""
     if is_url_argument(target):
         if not allow_network:
@@ -189,9 +239,10 @@ def load(target, allow_network=False, fetcher=None, dev=False):
             )
         if fetcher is None:  # pragma: no cover - the CLI always supplies one
             from .net import fetch as fetcher  # noqa: F811
-        final, headers, body = fetcher(target, dev, cap=MAX_BYTES)
+        budget = budget if budget is not None else RequestBudget()
+        final, headers, body = counted(fetcher, target, dev, MAX_BYTES, budget)
         return Source("url", target, body, headers=headers, fetcher=fetcher, dev=dev,
-                      retrieved_from=final)
+                      retrieved_from=final, budget=budget)
     path = os.path.abspath(target)
     if not os.path.isfile(path):
         raise TransportError("AGSC-E901", "file not found: %s" % target)
@@ -265,8 +316,9 @@ def _tokens(value):
     return [one.strip().lower() for one in (value or "").split(",") if one.strip()]
 
 
-def header_shortfalls(headers, cors, no_cache):
-    """One response's shortfalls against AGSC-11-03 (when ``cors``) and AGSC-11-05."""
+def header_shortfalls(headers, cors, no_cache, versioned=False):
+    """One response's shortfalls against AGSC-11-03 (when ``cors``) and AGSC-11-05;
+    ``versioned``: the route is a copy under ``/ns/<x.y.z>/`` (AGSC-06-06)."""
     out = []
     if cors:
         origin = _header_values(headers, "access-control-allow-origin")
@@ -293,8 +345,8 @@ def header_shortfalls(headers, cors, no_cache):
     if no_cache and "no-cache" not in _tokens(cache):
         out.append(("AGSC-E202", "Cache-Control is %s, not no-cache (AGSC-11-05)"
                     % _compact(cache or "")))
-    if "immutable" in _tokens(cache):
-        out.append(("AGSC-E201", "Cache-Control carries immutable, which no 1.0 route may "
+    if "immutable" in _tokens(cache) and not versioned:
+        out.append(("AGSC-E201", "Cache-Control carries immutable, which only /ns/<x.y.z>/ may "
                                  "(AGSC-11-05)"))
     return out
 
@@ -319,12 +371,16 @@ def _check_headers(source, anchor, restricted, level, report):
         lowered = {str(name).lower(): value for name, value in headers.items()}
         for code, message in header_shortfalls(
                 lowered, cors=is_document or not restricted,
-                no_cache=is_document or url.pathname in NO_CACHE):
+                no_cache=is_document or url.pathname in NO_CACHE,
+                versioned=VERSIONED.match(url.pathname) is not None):
             report(code, "%s: %s" % (final, message), severity=severity)
 
 
-def check(source, level, findings, dev=False):
-    """Check one document, appending findings.  Returns the anchor and the peers."""
+def check(source, level, findings, dev=False, spec_version=SPEC_VERSION):
+    """Check one document, appending findings.  Returns the anchor and the peers.
+
+    ``spec_version`` is the specification version the reader implements, the one
+    constant ``SPEC_VERSION`` unless a case states its reader (disc-0023)."""
 
     def report(code, message, severity="error"):
         findings.append(finding(code, source.name, message, severity=severity))
@@ -456,7 +512,7 @@ def check(source, level, findings, dev=False):
         # node claiming it publishes /ledger.jsonl and links it.
         report("AGSC-E202", "no rel#ledger link: a Level >= 2 node publishes /ledger.jsonl "
                             "and links it (AGSC-10-04, AGSC-09-93)")
-    declared, newer = _declared_version(context)
+    declared, newer = _declared_version(context, spec_version)
     bundle_version = graph_link.get("agsc-bundle-version")
     if isinstance(bundle_version, list):
         if len(bundle_version) != 1:
@@ -593,17 +649,21 @@ def check(source, level, findings, dev=False):
                     and "agsc-ledger-head" not in target:
                 report("AGSC-E202",
                        "rel#ledger: agsc-ledger-head is required at Level >= 2 (AGSC-06-08)")
+            if extension == "ledger":
+                ledger_length_findings(target, href, raw_anchor, source, level, report)
             if relation in RELATED_ONLY and not isinstance(target.get("type"), str):
                 report("AGSC-E209",
                        "related-system link %s %s must carry type (AGSC-06-35)" % (relation, href))
             if extension == "peer":
                 peers.append(href)
             if extension == "surface":
-                _check_surface(target, href, parsed, raw_anchor, source, report)
+                _check_surface(target, href, parsed, raw_anchor, source, report,
+                               (declared, level))
             if extension == "access" and restricted:
                 _check_access_target(target, href, report)
 
     _check_headers(source, anchor, restricted, level, report)
+    check_home_link(source, raw_anchor, findings)
     return {"anchor": raw_anchor, "peers": peers}
 
 
@@ -644,16 +704,16 @@ def _graph_link(context):
     return {}
 
 
-def _declared_version(context):
+def _declared_version(context, own=SPEC_VERSION):
     """AGSC-00-21 / AGSC-09-93: the ``agsc-spec-version`` the document declares on the
-    describedby link to its graph, and whether it is this checker's MAJOR with a newer
-    MINOR.  Only then are unknown relations and attributes ignored; a document of
-    another MAJOR has no such tolerance."""
+    describedby link to its graph, and whether it is the reader's (``own``) MAJOR with
+    a newer MINOR.  Only then are unknown relations and attributes ignored; a document
+    of another MAJOR has no such tolerance."""
     value = _graph_link(context).get("agsc-spec-version")
     if not isinstance(value, list) or not value:
         return None, False
     declared = str(value[0])
-    theirs, mine = _major_minor(declared), _major_minor(SPEC_VERSION)
+    theirs, mine = _major_minor(declared), _major_minor(own)
     newer = theirs is not None and mine is not None and theirs[0] == mine[0] \
         and theirs[1] > mine[1]
     return declared, newer
@@ -661,8 +721,12 @@ def _declared_version(context):
 
 
 
-def _check_surface(target, href, parsed, anchor, source, report):
-    """The AGSC-11-16 declaration checks for one rel#surface target."""
+def _check_surface(target, href, parsed, anchor, source, report, document):
+    """The AGSC-11-16 declaration checks for one rel#surface target; ``document`` is
+    the (declared version, Level) of the document it belongs to.  An ``llms-txt``
+    target and the target of public ``chunks`` must resolve; the ``chunks`` of a
+    restricted node declare ``credential`` and are not served unauthenticated
+    (AGSC-11-20), so they are not read."""
     declared = target.get("agsc-surface")
     access = target.get("agsc-access")
     version = target.get("agsc-surface-version")
@@ -691,12 +755,21 @@ def _check_surface(target, href, parsed, anchor, source, report):
     if name == "llms-txt" and parsed.pathname != "/llms.txt" \
             and not parsed.pathname.endswith("/llms.txt"):
         report("AGSC-E210", "rel#surface llms-txt must target /llms.txt (AGSC-11-16)")
-    if name in ("llms-txt", "chunks"):
+    declared, level = document
+    public_chunks = name == "chunks" and not (isinstance(access, list) and access
+                                              and access[0] == "credential")
+    if public_chunks:
+        chunk_facts_missing(target, href, declared, level, report)
+    if name == "llms-txt" or public_chunks:
         try:
-            source.resolve_target(href, anchor)
+            data = source.resolve_target(href, anchor)
+            if public_chunks and data is not None:
+                chunk_facts_findings(target, href, data, anchor, source, level, report)
         except TransportError as error:
-            report("AGSC-E210",
+            report("AGSC-E906" if error.code == "AGSC-E906" else "AGSC-E210",
                    "rel#surface %s: target does not resolve: %s" % (name, error.message))
+    if name == "a2a-card":
+        card_target_findings(href, parsed, anchor, source, report)
 
 
 def canonical_wellknown(result):
@@ -720,14 +793,20 @@ def mutual_findings(first_name, first, second_name, second):
     return out
 
 
-def validate(target, level=0, peer=None, dev=False, allow_network=False, fetcher=None):
-    """Check one document, and a peer when given.  Returns (envelope, files read)."""
+def validate(target, level=0, peer=None, dev=False, allow_network=False, fetcher=None,
+             max_requests=None):
+    """Check one document, and a peer when given.  Returns (envelope, files read).
+
+    ``max_requests``: the run's request budget (default ``federation.max_requests``'
+    500, AGSC-11-06), shared by the document, its targets and the peer."""
     findings = []
     reads = [0]
+    budget = RequestBudget() if max_requests is None else RequestBudget(max_requests)
 
     def run(name):
         try:
-            source = load(name, allow_network=allow_network, fetcher=fetcher, dev=dev)
+            source = load(name, allow_network=allow_network, fetcher=fetcher, dev=dev,
+                          budget=budget)
         except TransportError as error:
             reads[0] += 1
             findings.append(finding(error.code, name, error.message))

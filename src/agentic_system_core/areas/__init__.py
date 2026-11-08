@@ -44,6 +44,7 @@ from .slug_area import run as _run_slug
 #: contexts, crosswalks, SHACL): the engine checks the domain layer, this package not yet.
 DOMAIN_LAYER = "domain layer: engine only in 1.1"
 _NO_HTML = "needs the HTML page writer of a full build (AGSC-06-38); this package writes no HTML"
+_QUERY_PAGE = "needs the engine's build and the query page (Level 3)"
 
 #: vector id -> why this package does not run it: cases of the seven areas whose input
 #: shape the handler could read but whose subject is a writer or a layer this package
@@ -52,14 +53,22 @@ _NO_HTML = "needs the HTML page writer of a full build (AGSC-06-38); this packag
 CASES_NOT_RUN = {
     "bundle-0018": "needs the diagram compiler (Level 3)",
     "bundle-0019": "needs the diagram compiler (Level 3)",
+    "build-0029": _QUERY_PAGE,
+    "build-0030": _QUERY_PAGE,
     "build-0031": _NO_HTML,
     "build-0032": _NO_HTML,
     "build-0037": "needs the chunk writer of a full build (/chunks.jsonl, /chunks-index.toon)",
+    "disc-0032": ("needs a whole build of the minimal fixture: it reads every file the engine "
+                  "writes, the HTML home page among them, for the PROV-O terms (AGSC-06-41); "
+                  "this package writes no HTML"),
     "fm-0022": DOMAIN_LAYER,
     "fm-0023": DOMAIN_LAYER,
     "fm-0024": DOMAIN_LAYER,
     "fm-0025": DOMAIN_LAYER,
     "fm-0027": DOMAIN_LAYER,
+    "graph-0041": ("needs export --closure: a Turtle reader of the engine's ontology/agsc.ttl "
+                   "and the OWL 2 RL rules of AGSC-05-37 (the engine runs them with the n3 "
+                   "Reasoner); this package carries no export verb and no reasoner"),
     "graph-0042": DOMAIN_LAYER,
     "graph-0044": DOMAIN_LAYER,
     "graph-0045": DOMAIN_LAYER,

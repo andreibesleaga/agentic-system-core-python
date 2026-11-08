@@ -3,7 +3,7 @@
 Three verbs run here, in Python, with no Node and no network:
 
     agsc validate-wellknown <file> [--level 0|1|2|3] [--peer <file>] [--json] [--dev]
-                                   [--allow-network]
+                                   [--allow-network] [--max-requests <1..2000>]
     agsc validate-vectors <dir> [--json] [--quiet] [--spec <dir>] [--root <dir>]
     agsc run-vectors <dir> [--json] [--level 0|1|2|3] [--pending <file>]
 
@@ -25,7 +25,7 @@ import sys
 from . import SPEC_VERSION, __version__
 from .diagnostics import EXIT_PASS, EXIT_USAGE, envelope, exit_code, finding
 from .jcs import canonicalize_raw
-from .net import fetch
+from .net import MAX_REQUESTS, MAX_REQUESTS_RANGE, fetch
 
 #: The npm package that carries the engine and every other verb.
 NPM_PACKAGE = "agentic-system-core"
@@ -41,9 +41,10 @@ USAGE = """agsc <verb> [options]
 
 Runs natively, with no Node and no network:
   validate-wellknown <file> [--level 0|1|2|3] [--peer <file>] [--json] [--dev]
-                            [--allow-network]
+                            [--allow-network] [--max-requests <1..2000>]
       Check one discovery document served at /.well-known/knowledge-linkset.
-      A file is read always; a URL is read only with --allow-network.
+      A file is read always; a URL is read only with --allow-network, in at most
+      --max-requests requests (default 500, redirects counted).
   validate-vectors <dir> [--json] [--quiet] [--spec <dir>] [--root <dir>]
       Check a conformance-vector set against the file-format rules.
   run-vectors <dir> [--json] [--level 0|1|2|3] [--pending <file>]
@@ -83,10 +84,21 @@ def _usage_envelope(code, message, as_json, out, err, verb):
     return EXIT_USAGE
 
 
+def _max_requests(value):
+    """The request budget a ``--max-requests`` value names (AGSC-11-06), or None when it
+    is not a whole number in the range: one to five digits, as the engine reads it."""
+    if value is None or not (1 <= len(value) <= 5 and value.isascii() and value.isdigit()):
+        return None
+    number = int(value)
+    low, high = MAX_REQUESTS_RANGE
+    return number if low <= number <= high else None
+
+
 def run_validate_wellknown(argv, out, err):
     """The discovery-file checker."""
     as_json = "--json" in argv
-    options = {"dev": False, "level": 0, "peer": None, "target": None, "allow_network": False}
+    options = {"dev": False, "level": 0, "peer": None, "target": None, "allow_network": False,
+               "max_requests": MAX_REQUESTS}
     index = 0
     while index < len(argv):
         argument = argv[index]
@@ -97,6 +109,14 @@ def run_validate_wellknown(argv, out, err):
             options["dev"] = True
         elif argument == "--allow-network":
             options["allow_network"] = True
+        elif argument == "--max-requests":
+            value = _max_requests(argv[index] if index < len(argv) else None)
+            index += 1
+            if value is None:
+                return _usage_envelope("AGSC-E003", "--max-requests needs a whole number from "
+                                       "%d to %d" % MAX_REQUESTS_RANGE,
+                                       as_json, out, err, "validate-wellknown")
+            options["max_requests"] = value
         elif argument == "--level":
             value = argv[index] if index < len(argv) else None
             index += 1
@@ -129,7 +149,8 @@ def run_validate_wellknown(argv, out, err):
     from .wellknown import validate
     result, reads = validate(
         options["target"], level=options["level"], peer=options["peer"],
-        dev=options["dev"], allow_network=options["allow_network"], fetcher=fetch)
+        dev=options["dev"], allow_network=options["allow_network"], fetcher=fetch,
+        max_requests=options["max_requests"])
     line = ("validate-wellknown %s (level %d): %d input file(s) read, %d error(s), "
             "%d warning(s)\n" % (result["status"], options["level"], reads,
                                  result["counts"]["error"], result["counts"]["warn"]))

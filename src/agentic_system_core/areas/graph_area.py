@@ -1,8 +1,9 @@
 """Area ``graph`` — spec/05 and AGSC-04-15, AGSC-06-32.
 
 From 1.1 also the readings of the Link graph (AGSC-05-33, graph-0029), the ten
-questions (AGSC-05-34, graph-0030 to graph-0039) and the SKOS view (AGSC-05-36,
-graph-0040). Every member of ``expected`` is checked; a member this handler does not
+questions (AGSC-05-34, graph-0030 to graph-0039), the SKOS view (AGSC-05-36,
+graph-0040) and the context address that does not follow the ontology version
+(AGSC-05-09, graph-0043). Every member of ``expected`` is checked; a member this handler does not
 know is a failure, so a vector can never pass on an assertion nobody made.
 """
 
@@ -112,6 +113,27 @@ def _question(given, have, expected):
              canonicalize(got) == canonicalize(expected.get("answer")), canonicalize(got))]
 
 
+def _context_address(given, have, expected):
+    """graph-0043 (AGSC-05-09): the Bundle written once per ontology version the case
+    names, each time with the persistent context address of a Level-0 node: every
+    document names the one ``CONTEXT_URL`` and all are byte-identical.  This writer
+    reads no ontology version at all, which is the rule's point."""
+    base = _base(given)
+    written = [graph_module.to_jsonld(given["items"], base, context_url=context_module.CONTEXT_URL)
+               for _ in given["ontology_versions"]]
+    urls = [one.get("@context") for one in written]
+    documents = [canonicalize(one) for one in written]
+    out = []
+    if have("context_url"):
+        out.append(("context_url", bool(urls) and all(url == expected["context_url"]
+                                                       for url in urls), shown(urls)))
+    if have("graph_jsonld_identical_across_ontology_versions"):
+        same = all(one == documents[0] for one in documents)
+        out.append(("identical", same == expected["graph_jsonld_identical_across_ontology_versions"],
+                    "the documents differ across ontology versions"))
+    return out
+
+
 def run(vector):
     given = vector["input"]
     expected = vector["expected"]
@@ -128,6 +150,9 @@ def run(vector):
 
     if isinstance(given.get("question"), int):
         items.extend(_question(given, have, expected))
+
+    elif isinstance(given.get("ontology_versions"), list):
+        items.extend(_context_address(given, have, expected))
 
     elif "readings" in expected:
         items.extend(_readings(given, have, expected))
