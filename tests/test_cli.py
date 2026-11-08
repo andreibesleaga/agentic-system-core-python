@@ -101,10 +101,16 @@ def test_validate_vectors():
 
 def test_validate_vectors_usage_faults():
     assert run(["validate-vectors"])[0] == 2
-    assert run(["validate-vectors", "/no/such/dir"])[0] == 2
     assert run(["validate-vectors", "--bogus"])[0] == 2
     assert run(["validate-vectors", "--spec"])[0] == 2
     assert run(["validate-vectors", "--help"])[0] == 0
+
+
+def test_validate_vectors_reports_a_missing_folder_in_the_envelope():
+    # AGSC-09-90: exit 1 with AGSC-E901, as the engine's tool does; exit 2 is for usage.
+    code, out, err = run(["validate-vectors", "/no/such/dir", "--json"])
+    assert code == 1
+    assert [one["code"] for one in parse_ijson(out)["findings"]] == ["AGSC-E901"]
 
 
 def test_validate_vectors_with_a_live_spec_directory(tmp_path):
@@ -311,7 +317,7 @@ def test_allow_network_is_accepted_with_a_file_argument():
 def test_validate_vectors_prints_findings_in_plain_form(tmp_path):
     area = tmp_path / "jcs"
     area.mkdir()
-    (area / "a.json").write_bytes(b'{"area":"jcs"}\n')
+    (area / "jcs-9100.json").write_bytes(b'{"area":"jcs"}\n')
     code, out, err = run(["validate-vectors", str(tmp_path)])
     assert code == 1
     assert "AGSC-E202" in err

@@ -55,6 +55,11 @@ differently (SemVer's `1.1.0-rc.1` is `1.1.0rc1` here).
 - Fixed: a target path that names a directory no longer stops `validate-wellknown` with a traceback: it is a target not found on disk (AGSC-E901), so an `a2a-card` there is a card not served, the warning AGSC-E210, as in the engine's `checkCardTarget` (AGSC-11-16; PRD-024).
 - Fixed: a response field that Node's reader keeps only once (`Content-Type`, `ETag`, `Location` and fifteen more, `net.FIRST_LINE_ONLY`) is read from its first line when it is sent twice, as the engine's checker reads it; other repeated fields are still joined with ", " (PRD-024).
 - Not added: `site.header_set` has no `/query/*` block, because no case this package runs reads it (the query page of `build-0029` and `build-0030` is not run here).
+- Fixed: `validate-vectors` checks the `superseded_by` link: only a withdrawn vector may carry it (AGSC-E201), it is a vector id (AGSC-E204) and it names a vector of the same set (AGSC-E201) (AGSC-09-04; the engine's `tools/validate-vectors`; PRD-010). It used to be ignored.
+- Fixed: `validate-vectors` refuses a folder where not one JSON file sits at `<area>/<prefix>-<nnnn>[-words].json` with one AGSC-E901 and judges none of its files, as the engine's `isVectorPath` rule does (AGSC-09-04, AGSC-09-90; PRD-010). One area folder used to pass, and a site's `skills/index.json` was judged as a vector.
+- Changed: `validate-vectors` reports a missing folder as an AGSC-E901 finding with exit 1, as the engine does (AGSC-09-90; PRD-010); it used to be a usage fault, exit 2.
+- Docs: the README names the one known difference from the engine's checker: a digest target or ledger that is a directory is `EISDIR` there and AGSC-E901 here; `test_equivalence.py` pins it (PRD-024).
+- Tests: `test_actor_pattern.py` reads the engine from `AGSC_ENGINE_DIR` like every other engine test, and a fitness function fails on a test that spells out the engine path; `test_vectors.py` compares both validators on the vector copies, two `superseded_by` changes, one area folder, a skills index and a missing folder (PRD-010).
 
 ## [1.0.1] - 2026-10-21
 

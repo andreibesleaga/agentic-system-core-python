@@ -3,7 +3,8 @@
 The specification's ledger ends with a ``build`` entry whose actor is
 ``process:agsc/<version>`` (AGSC-08-20a), so the grammar admits a process actor
 followed by ``/<version>``. The engine's item schema carries the same pattern; when
-the engine is beside this repository, the two are compared on every case below.
+the engine checkout is here (``../agentic-system-core``, or the one
+``AGSC_ENGINE_DIR`` names), the two are compared on every case below.
 """
 
 import json
@@ -13,6 +14,7 @@ import re
 import pytest
 
 from agentic_system_core import frontmatter
+from conftest import ENGINE
 
 PROV = {"origin": "human", "operator": "human:x"}
 GOOD = ["human:ada", "process:ci", "process:agsc/1.0.0", "process:agsc/1.0.0-rc.7",
@@ -20,8 +22,7 @@ GOOD = ["human:ada", "process:ci", "process:agsc/1.0.0", "process:agsc/1.0.0-rc.
 BAD = ["agent:x", "ada", "human:Ada", "human:", "/1.0", "process:", "process:/1.0",
        "process:agsc/", "process:agsc/1.0/2", "process:Agsc/1.0", "human:ada/1.0",
        "process:agsc/-1"]
-ENGINE_SCHEMA = os.path.join(os.path.dirname(__file__), "..", "..", "agentic-system-core",
-                             "schema", "item.schema.json")
+ENGINE_SCHEMA = str(ENGINE / "schema" / "item.schema.json")
 
 
 def episode(actor):
@@ -49,7 +50,7 @@ def test_generated_by_takes_the_same_grammar():
     assert frontmatter.check(data) == []
 
 
-@pytest.mark.skipif(not os.path.isfile(ENGINE_SCHEMA), reason="the engine is not beside this repository")
+@pytest.mark.skipif(not os.path.isfile(ENGINE_SCHEMA), reason="the engine checkout is not here")
 def test_the_engine_schema_agrees_on_every_case():
     with open(ENGINE_SCHEMA, encoding="utf-8") as handle:
         pattern = re.compile(json.load(handle)["$defs"]["actor"]["pattern"])

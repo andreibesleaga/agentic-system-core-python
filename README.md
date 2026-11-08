@@ -154,6 +154,12 @@ grammars, the file encoding, the canonical member order, and the resolution of
 every rule identifier and every error code against the specification. An empty
 set is a failure, not a clean run.
 
+It also checks the `superseded_by` link: only a withdrawn vector carries it, and it
+names a vector of the same set. A folder where not one JSON file sits at a vector's
+path, `<area>/<prefix>-<nnnn>[-words].json` (one area folder, or a site's
+`/skills/index.json`), is not a vector set: the verb reports AGSC-E901 and judges
+none of its files. A missing folder is the same AGSC-E901 failure, exit 1.
+
 Both verbs need a vector directory: this package ships no vector set of its own.
 The vectors are in the npm package `agentic-system-core`, in its `tests/vectors/`
 folder (after `npm install -g agentic-system-core`, `npm root -g` prints the folder
@@ -281,6 +287,12 @@ and without a peer, and the status, the counts and the position and code of ever
 are compared. Message text is not compared: the specification leaves a message
 unspecified so it can be translated, and pins the code. That test is skipped,
 with a message saying so, when Node or the engine checkout is not present.
+
+One difference is known. When a digest target (`llms.txt`, say) or the ledger
+is a directory instead of a file, the engine's checker reports `EISDIR`, Node's own
+error name and not a registered code, and this package reports AGSC-E901, a
+target not found on disk. The exit code, the status and the counts are the same.
+A test pins the difference, so it fails once the engine reports a registered code.
 
 ## Tests
 

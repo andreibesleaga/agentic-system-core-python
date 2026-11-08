@@ -135,6 +135,57 @@ def _walk(directory):
     return sorted(out)
 
 
+#: AGSC-09-04: the path of a vector inside its tree, ``<area>/<prefix>-<nnnn>[-words].json``.
+_VECTOR_NAME = re.compile(r"^[a-z]+-\d{4}(-[A-Za-z0-9-]+)?\.json$")
+
+
+def _is_vector_path(absolute, directory):
+    parts = os.path.relpath(absolute, directory).split(os.sep)
+    return len(parts) == 2 and parts[0] in AREAS and _VECTOR_NAME.match(parts[1]) is not None
+
+
+def _files_to_judge(directory, label):
+    """The files of a vector tree, and the AGSC-E901 finding when there is none.
+
+    As the engine's ``validate-vectors`` reads AGSC-09-90: a missing folder and a folder
+    with no JSON file carry nothing to validate; a folder where not one JSON file sits at
+    a vector's path (one area folder, or a published site's ``/skills/index.json``) is
+    not a vector tree, and none of its files is judged.  Inside a vector tree every JSON
+    file is judged, so a misnamed vector is still reported.
+    """
+    if not os.path.isdir(directory):
+        return [], [finding("AGSC-E901", label, "no such directory: %s: there is nothing "
+                                               "to validate (AGSC-09-90)" % directory)]
+    files = _walk(directory)
+    if not files:
+        return [], [finding("AGSC-E901", label, "no vector file under %s: there is nothing "
+                                               "to validate (AGSC-09-90)" % directory)]
+    if not any(_is_vector_path(one, directory) for one in files):
+        return [], [finding(
+            "AGSC-E901", label,
+            "%s is not a vector directory: none of its %d JSON file(s) is an "
+            "<area>/<prefix>-<nnnn>.json vector, so none was judged (AGSC-09-04, AGSC-09-90)"
+            % (directory, len(files)))]
+    return files, []
+
+
+def _supersession_findings(links, seen):
+    """AGSC-09-04: a ``superseded_by`` link sits on a withdrawn vector and names a
+    vector of the same set; checked once every identifier is known."""
+    out = []
+    for name, level, target in links:
+        if level != "withdrawn":
+            out.append(finding("AGSC-E201", name,
+                               "only a withdrawn vector may carry `superseded_by` (AGSC-09-04)"))
+        if not isinstance(target, str) or _ID.match(target) is None:
+            out.append(finding("AGSC-E204", name, 'superseded_by "%s" is not a vector id '
+                                                  "(AGSC-09-04)" % (target,)))
+        elif target not in seen:
+            out.append(finding("AGSC-E201", name, 'superseded_by "%s" names no vector of '
+                                                  "this set (AGSC-09-04)" % target))
+    return out
+
+
 def _relative(path, root):
     return os.path.relpath(path, root).replace(os.sep, "/")
 
@@ -184,12 +235,7 @@ def validate(directory, spec=None, root=None):
             else os.path.dirname(directory)
     root = os.path.abspath(root)
 
-    findings = []
-    files = _walk(directory)
-    if not files:
-        findings.append(finding(
-            "AGSC-E901", _relative(directory, root),
-            "no vector file under %s: there is nothing to validate (AGSC-09-90)" % directory))
+    files, findings = _files_to_judge(directory, _relative(directory, root))
     if not rule_ids:
         findings.append(finding(
             "AGSC-E901", "spec/",
@@ -197,6 +243,7 @@ def validate(directory, spec=None, root=None):
 
     seen = {}
     present = set()
+    links = []
     for absolute in files:
         name = _relative(absolute, root)
         with open(absolute, "rb") as handle:
@@ -261,6 +308,8 @@ def validate(directory, spec=None, root=None):
                 findings.append(finding(
                     "AGSC-E201", name,
                     'rule "%s" is defined nowhere in spec/ (AGSC-09-05)' % vector["rule"]))
+        if "superseded_by" in vector:
+            links.append((name, vector.get("level"), vector["superseded_by"]))
         if vector.get("level") == "withdrawn":
             if not isinstance(vector.get("reason"), str) or vector["reason"] == "":
                 findings.append(finding(
@@ -292,6 +341,7 @@ def validate(directory, spec=None, root=None):
                     "AGSC-E203", name,
                     "error code %s is not registered in spec/09 section 9.4 (AGSC-09-15)" % code))
 
+    findings.extend(_supersession_findings(links, seen))
     empty = [area for area in AREAS if area not in present]
     return envelope(findings, VALIDATE_VERB, spec_version=declared), len(files), empty
 

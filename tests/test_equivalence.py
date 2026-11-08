@@ -159,3 +159,31 @@ def test_both_checkers_agree_on_a_node_the_engine_builds(built_nodes, node_name,
     python_code, python_shape = python(args)
     assert (node_code, node_shape) == (python_code, python_shape)
     assert node_shape is not None
+
+
+@pytest.mark.parametrize("level", ["0", "2"])
+def test_the_known_difference_when_a_digest_target_or_the_ledger_is_a_directory(
+        built_nodes, tmp_path, level):
+    # The one difference the README names: the engine reports Node's own error name
+    # EISDIR, which is not a registered code, where this package reports AGSC-E901 (a
+    # target not found on disk). Exit code, status and counts agree. This test fails once
+    # the engine reports a registered code there; then the README note comes out.
+    if "agsc-demo-node" not in built_nodes:
+        pytest.skip("the demonstration node is not checked out beside this repository at %s"
+                    % DEMO_NODE)
+    site = tmp_path / "www"
+    shutil.copytree(str(built_nodes["agsc-demo-node"].parent.parent), str(site))
+    for name in ("llms.txt", "ledger.jsonl"):
+        (site / name).unlink()
+        (site / name).mkdir()
+    args = [str(site / ".well-known" / "knowledge-linkset"), "--level", level, "--json"]
+    node_code, node_shape = node(args)
+    python_code, python_shape = python(args)
+    assert node_code == python_code == 1
+    assert (node_shape["status"], node_shape["counts"]) == \
+        (python_shape["status"], python_shape["counts"])
+    theirs = [one[3] for one in node_shape["findings"]]
+    ours = [one[3] for one in python_shape["findings"]]
+    assert theirs.count("EISDIR") == ours.count("AGSC-E901") == 3
+    assert [code for code in theirs if code != "EISDIR"] == \
+        [code for code in ours if code != "AGSC-E901"]

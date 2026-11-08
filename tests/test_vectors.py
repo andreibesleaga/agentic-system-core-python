@@ -1,13 +1,16 @@
 """The vector-set checker and the runner for the areas this package covers."""
 
+import io
 import json
 import os
 import re
+import shutil
+import subprocess
 
 import pytest
 
-from agentic_system_core import SPEC_VERSION, vectors
-from conftest import ENGINE, VECTORS
+from agentic_system_core import SPEC_VERSION, cli, vectors
+from conftest import ENGINE, VECTORS, engine_available
 
 
 def vectors_module_areas():
@@ -262,8 +265,8 @@ def test_a_missing_required_member_is_e202(tmp_path):
 
 
 def test_a_duplicate_id_is_e201(tmp_path):
-    _write(tmp_path / "jcs", "a.json", _good())
-    _write(tmp_path / "jcs", "b.json", _good())
+    _write(tmp_path / "jcs", "jcs-9100.json", _good())
+    _write(tmp_path / "jcs", "jcs-9100-copy.json", _good())
     result, _, _ = vectors.validate(str(tmp_path))
     assert "AGSC-E201" in codes(result)
 
@@ -275,21 +278,21 @@ def test_the_folder_must_agree_with_the_area(tmp_path):
 
 
 def test_encoding_faults_are_e108(tmp_path):
-    _write(tmp_path / "jcs", "a.json", _good(), trailer=b"\n\n")
+    _write(tmp_path / "jcs", "jcs-9100.json", _good(), trailer=b"\n\n")
     result, _, _ = vectors.validate(str(tmp_path))
     assert "AGSC-E108" in codes(result)
 
     other = tmp_path / "two" / "jcs"
     other.mkdir(parents=True)
     body = json.dumps(_good(), separators=(",", ":"), sort_keys=True)
-    (other / "a.json").write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8") + b"\r\n")
+    (other / "jcs-9100.json").write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8") + b"\r\n")
     result, _, _ = vectors.validate(str(tmp_path / "two"))
     assert codes(result).count("AGSC-E108") >= 2
 
 
 def test_non_nfc_text_is_e108_unless_the_case_is_the_exemption(tmp_path):
     decomposed = _good(description="A fixture with a decomposed é.")
-    _write(tmp_path / "jcs", "a.json", decomposed)
+    _write(tmp_path / "jcs", "jcs-9100.json", decomposed)
     result, _, _ = vectors.validate(str(tmp_path))
     assert "AGSC-E108" in codes(result)
 
@@ -297,7 +300,7 @@ def test_non_nfc_text_is_e108_unless_the_case_is_the_exemption(tmp_path):
     exempt.mkdir(parents=True)
     body = json.dumps(_good(id="jcs-0005", description="A fixture with a decomposed é."),
                       ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    (exempt / "a.json").write_bytes(body.encode("utf-8") + b"\n")
+    (exempt / "jcs-9100.json").write_bytes(body.encode("utf-8") + b"\n")
     result, _, _ = vectors.validate(str(tmp_path / "two"))
     assert "AGSC-E108" not in codes(result)
 
@@ -305,7 +308,7 @@ def test_non_nfc_text_is_e108_unless_the_case_is_the_exemption(tmp_path):
 def test_members_out_of_jcs_order_are_e601(tmp_path):
     area = tmp_path / "jcs"
     area.mkdir()
-    (area / "a.json").write_bytes(
+    (area / "jcs-9100.json").write_bytes(
         b'{"id":"jcs-9100","area":"jcs","description":"A fixture.","expected":{"output":"{}"},'
         b'"input":{"value":{}},"level":"required","rule":"AGSC-04-05"}\n')
     result, _, _ = vectors.validate(str(tmp_path))
@@ -315,7 +318,7 @@ def test_members_out_of_jcs_order_are_e601(tmp_path):
 def test_the_input_value_subtree_is_exempt_from_the_order_rule(tmp_path):
     area = tmp_path / "jcs"
     area.mkdir()
-    (area / "a.json").write_bytes(
+    (area / "jcs-9100.json").write_bytes(
         b'{"area":"jcs","description":"A fixture.","expected":{"output":"{\\"a\\":1,\\"b\\":2}"},'
         b'"id":"jcs-9100","input":{"value":{"b":2,"a":1}},"level":"required",'
         b'"rule":"AGSC-04-05"}\n')
@@ -324,7 +327,7 @@ def test_the_input_value_subtree_is_exempt_from_the_order_rule(tmp_path):
 
 
 def test_a_withdrawn_vector_must_carry_a_reason_and_a_reduced_expectation(tmp_path):
-    _write(tmp_path / "jcs", "a.json", _good(level="withdrawn"))
+    _write(tmp_path / "jcs", "jcs-9100.json", _good(level="withdrawn"))
     result, _, _ = vectors.validate(str(tmp_path))
     assert codes(result).count("AGSC-E202") == 1
     assert "AGSC-E201" in codes(result)
@@ -333,7 +336,7 @@ def test_a_withdrawn_vector_must_carry_a_reason_and_a_reduced_expectation(tmp_pa
 def test_a_file_that_is_not_json_is_e201(tmp_path):
     area = tmp_path / "jcs"
     area.mkdir()
-    (area / "a.json").write_bytes(b"not json\n")
+    (area / "jcs-9100.json").write_bytes(b"not json\n")
     result, _, _ = vectors.validate(str(tmp_path))
     assert codes(result) == ["AGSC-E201"]
 
@@ -387,9 +390,9 @@ def test_the_whole_engine_vector_set_passes_the_file_format_check():
 
 
 def test_a_vector_directory_that_is_not_tests_vectors_still_names_files(tmp_path):
-    _write(tmp_path / "jcs", "a.json", _good(id="JCS-1"))
+    _write(tmp_path / "jcs", "jcs-9100.json", _good(id="JCS-1"))
     result, _, _ = vectors.validate(str(tmp_path), root=str(tmp_path))
-    assert result["findings"][0]["file"] == "jcs/a.json"
+    assert result["findings"][0]["file"] == "jcs/jcs-9100.json"
 
 
 def test_a_specification_that_declares_no_rule_is_called_vacuous(tmp_path):
@@ -398,7 +401,7 @@ def test_a_specification_that_declares_no_rule_is_called_vacuous(tmp_path):
     (spec / "00-overview.md").write_bytes(b"1.0.0\n")
     (spec / "09-conformance.md").write_bytes(b"| `AGSC-E201` | a shape fault |\n")
     area = tmp_path / "vectors" / "jcs"
-    _write(area, "a.json", _good())
+    _write(area, "jcs-9100.json", _good())
     result, _, _ = vectors.validate(str(tmp_path / "vectors"), spec=str(spec))
     assert "AGSC-E901" in codes(result)
     assert any("vacuous" in one["message"] for one in result["findings"])
@@ -416,3 +419,113 @@ def test_a_slug_vector_that_states_no_pattern_still_runs(tmp_path):
         json.dumps(vector, separators=(",", ":"), sort_keys=True).encode("utf-8") + b"\n")
     report, code = vectors.run(str(tmp_path))
     assert code == 0 and report["tally"]["pass"] == 1
+
+
+def _withdrawn(**overrides):
+    vector = _good(expected={"withdrawn": True}, level="withdrawn",
+                   reason="replaced by a later case")
+    vector.update(overrides)
+    return vector
+
+
+def test_a_withdrawn_vector_may_name_the_vector_that_supersedes_it(tmp_path):
+    _write(tmp_path / "jcs", "jcs-9100.json", _withdrawn(superseded_by="jcs-9101"))
+    _write(tmp_path / "jcs", "jcs-9101.json", _good(id="jcs-9101"))
+    result, _, _ = vectors.validate(str(tmp_path))
+    assert result["status"] == "pass", result["findings"]
+
+
+@pytest.mark.parametrize("vector,expected", [
+    # AGSC-09-04: only a withdrawn vector carries the link...
+    (_good(superseded_by="jcs-9101"), ["AGSC-E201"]),
+    # ...it is a vector identifier...
+    (_withdrawn(superseded_by="JCS-1"), ["AGSC-E204"]),
+    (_withdrawn(superseded_by=7), ["AGSC-E204"]),
+    # ...and it names a vector of the same set.
+    (_withdrawn(superseded_by="jcs-9999"), ["AGSC-E201"]),
+    (_good(superseded_by="jcs-9999"), ["AGSC-E201", "AGSC-E201"]),
+], ids=["not-withdrawn", "not-an-id", "not-a-string", "names-no-vector", "both"])
+def test_a_superseded_by_link_is_checked_as_the_engine_checks_it(tmp_path, vector, expected):
+    _write(tmp_path / "jcs", "jcs-9100.json", vector)
+    _write(tmp_path / "jcs", "jcs-9101.json", _good(id="jcs-9101"))
+    result, _, _ = vectors.validate(str(tmp_path))
+    assert codes(result) == expected
+
+
+def test_a_folder_with_no_file_of_the_vector_shape_is_not_a_vector_tree(tmp_path):
+    # One area folder given in place of the tree: the files sit one level too high.
+    _write(tmp_path, "jcs-9100.json", _good())
+    result, count, _ = vectors.validate(str(tmp_path))
+    assert codes(result) == ["AGSC-E901"] and count == 0
+    assert "not a vector directory" in result["findings"][0]["message"]
+
+
+def test_a_published_skills_index_is_not_judged_as_a_vector(tmp_path):
+    (tmp_path / "skills").mkdir()
+    (tmp_path / "skills" / "index.json").write_bytes(b'{"skills":[]}\n')
+    result, count, _ = vectors.validate(str(tmp_path))
+    assert codes(result) == ["AGSC-E901"] and count == 0
+
+
+def test_inside_a_vector_tree_a_misnamed_file_is_still_judged(tmp_path):
+    _write(tmp_path / "jcs", "jcs-9100.json", _good())
+    (tmp_path / "jcs" / "notes.json").write_bytes(b"not json\n")
+    result, count, _ = vectors.validate(str(tmp_path))
+    assert codes(result) == ["AGSC-E201"] and count == 2
+
+
+def test_a_missing_folder_is_an_e901_finding(tmp_path):
+    result, count, _ = vectors.validate(str(tmp_path / "nowhere"))
+    assert codes(result) == ["AGSC-E901"] and count == 0
+    assert "no such directory" in result["findings"][0]["message"]
+
+
+def _engine_validate(directory):
+    done = subprocess.run(["node", str(ENGINE / "tools" / "validate-vectors"), str(directory),
+                           "--json"], capture_output=True, text=True, cwd=str(ENGINE))
+    envelope = json.loads(done.stdout)
+    return done.returncode, envelope["status"], sorted(one["code"] for one in envelope["findings"])
+
+
+def _python_validate(directory):
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(["validate-vectors", str(directory), "--json"], out=out, err=err)
+    envelope = json.loads(out.getvalue())
+    return code, envelope["status"], sorted(one["code"] for one in envelope["findings"])
+
+
+def _vector_tree_with(tmp_path, identifier, **members):
+    tree = tmp_path / "vectors"
+    shutil.copytree(str(VECTORS), str(tree))
+    path = next(tree.glob("*/%s*.json" % identifier))
+    vector = json.loads(path.read_text(encoding="utf-8"))
+    vector.update(members)
+    path.write_text(json.dumps(vector, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8")
+    return tree
+
+
+def _inputs_the_two_validators_judge(tmp_path):
+    skills = tmp_path / "site"
+    (skills / "skills").mkdir(parents=True)
+    (skills / "skills" / "index.json").write_bytes(b'{"skills":[]}\n')
+    return {
+        "copies": VECTORS,
+        "superseded-by-on-a-required-vector":
+            _vector_tree_with(tmp_path / "a", "slug-0001", superseded_by="slug-9999"),
+        "superseded-by-on-a-withdrawn-vector":
+            _vector_tree_with(tmp_path / "b", "disc-0013", superseded_by="disc-0004"),
+        "one-area-folder": VECTORS / "slug",
+        "a-skills-index-only": skills,
+        "a-missing-folder": tmp_path / "nowhere",
+    }
+
+
+@pytest.mark.skipif(not (engine_available() and (ENGINE / "tools" / "validate-vectors").is_file()),
+                    reason="the validator equivalence needs Node and the engine checkout")
+@pytest.mark.parametrize("name", ["copies", "superseded-by-on-a-required-vector",
+                                  "superseded-by-on-a-withdrawn-vector", "one-area-folder",
+                                  "a-skills-index-only", "a-missing-folder"])
+def test_both_validators_agree(tmp_path, name):
+    directory = _inputs_the_two_validators_judge(tmp_path)[name]
+    assert _python_validate(directory) == _engine_validate(directory)

@@ -193,9 +193,8 @@ def run_validate_vectors(argv, out, err):
         _write(err, "validate-vectors: a vector directory is required; this package ships no "
                     "vector set of its own (AGSC-E003)\n")
         return EXIT_USAGE
-    if not os.path.isdir(directory):
-        _write(err, "validate-vectors: no such directory: %s (AGSC-E901)\n" % directory)
-        return EXIT_USAGE
+    # A missing folder is an AGSC-E901 finding in the envelope, exit 1 (AGSC-09-90), not
+    # a usage fault: AGSC-09-08 keeps exit 2 for an unknown verb, flag or a missing argument.
     result, count, empty = validate(directory, spec=spec, root=root)
     if as_json:
         _write(out, canonicalize_raw(result) + "\n")
