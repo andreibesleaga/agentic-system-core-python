@@ -1,6 +1,7 @@
 """Area ``build`` — AGSC-06-16/06-23 (search), AGSC-06-21 (the sharded index),
 AGSC-06-33 (fragments), AGSC-06-17 (headers and the page policy), AGSC-06-36
-(security.txt) and AGSC-04-25/06-22 (content version).
+(security.txt, with the declared disclosure page of 1.1) and AGSC-04-25/06-22 (content
+version, and the ``/now/`` line of a restricted node, AGSC-11-20).
 
 Every member of ``expected`` is checked; an unknown member is a failure.  A
 vector whose input is a whole Bundle (``bundle`` or inline ``files``) needs a
@@ -31,8 +32,9 @@ def _cases(given, expected, handler):
 
 
 def _security(case, want, base):
+    # build-0035 (AGSC-06-36 as amended for 1.1) declares site.security_policy.
     text, findings = site.security_txt(case["authored"], case["instant"], base,
-                                       case["legal"])
+                                       case["legal"], policy=case.get("security_policy"))
     out = [(case["name"] + ":text", text == want["text"], shown(text)),
            (case["name"] + ":findings", _codes(findings) == want["findings"],
             shown(_codes(findings)))]
@@ -55,6 +57,12 @@ def _version(case, want):
                         kind == want["ledger_kind_of_built_commit"], kind))
         unknown = set(want) - {"bundle_version", "findings", "ledger_kind_of_built_commit",
                                "name"}
+    elif "visibility" in case:
+        # build-0036 (AGSC-06-22 with AGSC-11-20): the whole line, public or restricted.
+        line = site.now_line(case["bundle_version"], case["instant"], case["fingerprint"],
+                             case["spec_version"], visibility=case["visibility"])
+        out.append((case["name"] + ":line", line == want["line"], line))
+        unknown = set(want) - {"line", "name"}
     else:
         line = site.now_line(case["bundle_version"], case["generated_at"],
                              case["bundle_hash"], case["spec_version"])

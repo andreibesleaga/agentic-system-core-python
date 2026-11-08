@@ -1,10 +1,13 @@
 """Area ``graph`` — spec/05 and AGSC-04-15, AGSC-06-32.
 
-Every member of ``expected`` is checked; a member this handler does not know is
-a failure, so a vector can never pass on an assertion nobody made.
+From 1.1 also the readings of the Link graph (AGSC-05-33, graph-0029), the ten
+questions (AGSC-05-34, graph-0030 to graph-0039) and the SKOS view (AGSC-05-36,
+graph-0040). Every member of ``expected`` is checked; a member this handler does not
+know is a failure, so a vector can never pass on an assertion nobody made.
 """
 
 from .. import context as context_module
+from .. import derive, links, questions, skos
 from .. import graph as graph_module
 from ..jcs import canonicalize
 from ..rdf import Literal, nquads_term, prefix_block, turtle_has_blank_node, turtle_term
@@ -58,6 +61,57 @@ def _jsonld_files(given, expected, base):
     return out
 
 
+#: graph-0029 states its readings over items with no base; the dataset it compares with
+#: is written at this one (the engine's handler does the same).
+_READINGS_BASE = "https://a.example/"
+
+
+def _property_of_key(key):
+    """The RDF property a reading's key is written with, or None (``derivation-of``)."""
+    if key in graph_module.LINK_PROPERTIES:
+        return graph_module.LINK_PROPERTIES[key][0]
+    owner = [name for name, inverse in links.INVERSE.items() if inverse == key]
+    return graph_module.LINK_PROPERTIES[owner[0]][1] if owner else None
+
+
+def _stored(readings, items):
+    """The transitive and closure readings that are a triple of the dataset (none may be)."""
+    triples = graph_module.dataset(items, _READINGS_BASE)
+    by_slug = dict((item["slug"], item) for item in items)
+
+    def iri(slug):
+        return graph_module.IRI(graph_module.item_iri(_READINGS_BASE, by_slug[slug]))
+    return [one for one in readings
+            if one["because"][0]["rule"] in ("transitive", "closure")
+            and _property_of_key(one["key"]) is not None
+            and (iri(one["source"]), graph_module.IRI(_property_of_key(one["key"])),
+                 iri(one["target"])) in triples]
+
+
+def _readings(given, have, expected):
+    """graph-0029 (AGSC-05-33): the readings, in order; none is stored in the graph."""
+    edges, _ = links.edges(given["items"])
+    got = derive.readings(edges)
+    out = []
+    if have("readings"):
+        out.append(("readings", canonicalize(got) == canonicalize(expected["readings"]),
+                    canonicalize(got)))
+    if have("graph_files_unchanged"):
+        stored = _stored(got, given["items"])
+        out.append(("graph-files-unchanged",
+                    (stored == []) == expected["graph_files_unchanged"], shown(stored)))
+    return out
+
+
+def _question(given, have, expected):
+    """graph-0030 to graph-0039 (AGSC-05-34): one question over the shared fixture."""
+    got = questions.answer(given["question"], given["items"], subject=given.get("subject"),
+                           selection=given.get("selection") or [], at=given.get("at"))
+    have("answer")  # a case with no answer stated fails on the comparison below
+    return [("question %s" % given["question"],
+             canonicalize(got) == canonicalize(expected.get("answer")), canonicalize(got))]
+
+
 def run(vector):
     given = vector["input"]
     expected = vector["expected"]
@@ -72,7 +126,13 @@ def run(vector):
         handled.add(name)
         return name in expected
 
-    if isinstance(given.get("items"), list):
+    if isinstance(given.get("question"), int):
+        items.extend(_question(given, have, expected))
+
+    elif "readings" in expected:
+        items.extend(_readings(given, have, expected))
+
+    elif isinstance(given.get("items"), list):
         base = _base(given)
         bundle = given.get("bundle")
         data = given.get("attachment_bytes")
@@ -118,6 +178,11 @@ def run(vector):
             inverse = any((b, a) in pairs for a, b in pairs)
             items.append(("inverse", inverse == expected["inverse_materialised"],
                           shown(inverse)))
+        if have("skos"):
+            # graph-0040 (AGSC-05-36): the SKOS view, the whole file.
+            view = skos.skos_view(graph_module.dataset(given["items"], base, bundle, data),
+                                  skos.scheme_record(given))
+            items.append(("skos", view == expected["skos"], shown(view)))
         if have("whole_file_asserted"):
             items.append(("whole-file", expected["whole_file_asserted"] is False,
                           "a whole-file assertion needs `nquads`"))

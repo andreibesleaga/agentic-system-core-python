@@ -149,10 +149,21 @@ rule text of the specification alone, in the standard library:
 | `frontmatter` | a reader for the closed YAML subset of AGSC-02-02 (failsafe scalars, each rejected construct under its own code, line numbers), the item checks of spec/02, and the drop-in adoption of AGSC-02-90…93 |
 | `slug` | the slug grammar and uniqueness |
 | `jcs` | RFC 8785 canonical JSON with NFC before sorting |
-| `links` | the fourteen Link keys and their inverses, the cycle and cluster-tree checks, heading anchors, and inline-link resolution over a small CommonMark 0.31.2 scanner (headings and inline links only, outside code; its subset is written down in `agentic_system_core/markdown.py`) |
-| `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, `graph.jsonld` and the per-item `/pages/<slug>.jsonld` files of AGSC-05-09, written with the published context, and the JSON-LD context of AGSC-06-32 with the compaction it round-trips |
-| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt`, the content version and the staleness comparison; thirteen vectors of these seven areas need a whole build (`build-0015`, `build-0017`, `build-0020` to `build-0028`, `disc-0018`, `graph-0027`) and are reported as not run, by name. Nine of them are still checked by this package: the test suite has the engine build each Bundle and `agentic_system_core/areas/build_tree.py` checks every expectation of `build-0020` to `build-0028` against the files written |
-| `discovery` | `/llms.txt` and `/llms-full.txt` byte for byte, reachability, the sitemap and robots facts, the link-set writer, and the discovery-document checks including the restricted-node rule of AGSC-11-20 |
+| `links` | the fourteen Link keys and their inverses (the relation table of AGSC-03-01, shipped as data derived from the engine), the cycle and cluster-tree checks, the four warnings about what a Link says (a self-link, two relations a pair cannot both hold, a target of an unexpected kind, superseding a stable item: AGSC-03-23 to AGSC-03-26), heading anchors, and inline-link resolution over a small CommonMark 0.31.2 scanner (headings and inline links only, outside code; its subset is written down in `agentic_system_core/markdown.py`) |
+| `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, `graph.jsonld` and the per-item `/pages/<slug>.jsonld` files of AGSC-05-09, written with the published context, the JSON-LD context of AGSC-06-32 with the compaction it round-trips, the readings of the Link graph with their reasons (AGSC-05-33), the ten questions of AGSC-05-34, and the SKOS view of AGSC-05-36 |
+| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt` (with a declared disclosure page), the content version, the `/now/` line (a restricted node's too) and the staleness comparison |
+| `discovery` | `/llms.txt` and `/llms-full.txt` byte for byte (the 1.1 layout, a restricted node's header too), reachability, the sitemap and robots facts, the link-set writer, and the discovery-document checks including the restricted-node rule of AGSC-11-20 |
+
+Vectors of these seven areas that `run-vectors` reports as not run, each with its reason:
+
+- Seventeen need a whole Bundle build: `build-0015`, `build-0017`, `build-0020` to `build-0023`, `build-0025` to `build-0030`, `build-0033`, `build-0034`, `disc-0018`, `disc-0032`, `graph-0027`.
+- Three need a writer this package does not carry, the HTML item pages or the chunk files: `build-0031`, `build-0032`, `build-0037`.
+- Eleven belong to the domain layer (site vocabulary, domain keys, warrants, contexts, crosswalks, SHACL), which only the engine checks in 1.1: `fm-0022` to `fm-0025`, `fm-0027`, `graph-0042`, `graph-0044` to `graph-0046`, `links-0018`, `links-0019`.
+
+Eight of the whole-build cases are still checked by this package: the test suite has
+the engine build each Bundle, and `agentic_system_core/areas/build_tree.py` checks every
+expectation of the 1.0 surface cases (`build-0020` to `build-0028`, less the withdrawn
+`build-0024`) against the files written.
 
 The other areas need a Bundle build, the engine's composition or governance
 modules, or its command-line surface. Nothing is ever counted as a pass that

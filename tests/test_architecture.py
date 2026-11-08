@@ -1,9 +1,10 @@
 """Fitness functions for the package's shape, read from the source with ``ast``.
 
-Two rules the README and docs/ARCHITECTURE.md state: the package imports nothing but
-the standard library and itself (``dependencies = []``), and only ``cli.py`` starts a
-process (it forwards the engine verbs to Node). A checker of a built tree reads files
-another writer built; it never builds one itself.
+Three rules the README and docs/ARCHITECTURE.md state: the package imports nothing but
+the standard library and itself (``dependencies = []``); only ``cli.py`` starts a
+process (it forwards the engine verbs to Node), so a checker of a built tree reads files
+another writer built and never builds one itself; and the relation table of AGSC-03-01
+has one source, ``data/relations.json``, which only ``relations.py`` reads.
 """
 
 import ast
@@ -61,3 +62,23 @@ def test_only_the_command_line_starts_a_process():
     starters = sorted(str(path.relative_to(PACKAGE)) for path in MODULES
                       if _imports(path) & {"subprocess", "multiprocessing"})
     assert starters == ["cli.py"]
+
+
+def _string_constants(path):
+    return set(node.value for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+               if isinstance(node, ast.Constant) and isinstance(node.value, str))
+
+
+def test_the_relation_table_has_one_source():
+    # AGSC-03-01: the fourteen keys, their inverses and their RDF properties are read
+    # from data/relations.json (derived from the engine), never typed in a module.
+    # A computed inverse name is the table's own fact, so no module spells one out,
+    # and only relations.py names the data file.
+    from agentic_system_core import relations
+    spelled = dict((str(path.relative_to(PACKAGE)),
+                    sorted(_string_constants(path) & set(relations.COMPUTED_KEYS)))
+                   for path in MODULES)
+    assert dict((name, found) for name, found in spelled.items() if found) == {}
+    readers = sorted(str(path.relative_to(PACKAGE)) for path in MODULES
+                     if "relations.json" in _string_constants(path))
+    assert readers == ["relations.py"]

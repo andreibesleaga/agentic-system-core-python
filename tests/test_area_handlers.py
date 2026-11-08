@@ -18,19 +18,18 @@ def vector(identifier):
     raise KeyError(identifier)
 
 
-def _needs_build(data):
-    """A vector whose input is a whole Bundle is reported not run, never judged."""
-    given = data["input"]
-    if data["area"] == "build":
-        return any(k in given for k in ("bundle", "files"))
-    if data["area"] == "graph":
-        return "bundle" in given and isinstance(given.get("item"), dict)
-    return data["area"] == "discovery" and "bundle" in given and "items" not in given
+def _not_run(data):
+    """A vector this package reports as not run, with its reason, is never judged. A
+    handler that raises is judged: the runner reports the raise as a failure."""
+    try:
+        return AREA_RUNNERS[data["area"]](copy.deepcopy(data))["status"] == "not-run"
+    except Exception:
+        return False
 
 
 RUN = [one for one in sorted(VECTORS.rglob("*.json"))
        if json.loads(one.read_bytes().decode("utf-8"))["area"] not in ("jcs", "slug")
-       and not _needs_build(json.loads(one.read_bytes().decode("utf-8")))]
+       and not _not_run(json.loads(one.read_bytes().decode("utf-8")))]
 
 
 def test_a_vector_that_needs_a_whole_build_is_reported_not_run():
@@ -133,8 +132,9 @@ def test_case_lists_with_missing_or_extra_cases_fail():
 
 def test_wrong_bytes_are_caught():
     for identifier, member in (("graph-0026", "turtle"), ("graph-0021", "nquads"),
-                               ("disc-0013", "output"), ("build-0003", "output"),
-                               ("fm-0008", "output")):
+                               ("disc-0024", "output"), ("disc-0034", "output"),
+                               ("build-0003", "output"), ("fm-0008", "output"),
+                               ("graph-0040", "skos")):
         data = vector(identifier)
         data["expected"][member] = data["expected"][member] + "x"
         assert AREA_RUNNERS[data["area"]](data)["status"] == "fail", identifier
@@ -154,3 +154,57 @@ def test_the_links_area_reports_errors_on_a_clean_case():
     data = vector("links-0004")
     data["expected"]["errors"] = ["AGSC-E301"]
     assert AREA_RUNNERS["links"](data)["status"] == "fail"
+
+
+@pytest.mark.parametrize("identifier, reason", [
+    ("build-0031", "writes no HTML"), ("build-0032", "writes no HTML"),
+    ("build-0037", "chunk"),
+    ("fm-0022", "domain layer: engine only in 1.1"),
+    ("graph-0044", "domain layer: engine only in 1.1"),
+    ("links-0019", "domain layer: engine only in 1.1"),
+])
+def test_a_case_this_package_cannot_run_is_reported_not_run_with_its_reason(identifier,
+                                                                             reason):
+    data = vector(identifier)
+    result = AREA_RUNNERS[data["area"]](data)
+    assert result["status"] == "not-run"
+    assert reason in result["detail"]
+
+
+@pytest.mark.parametrize("identifier", ["links-0010", "links-0012", "links-0014",
+                                        "links-0016"])
+def test_a_warning_the_case_does_not_state_fails(identifier):
+    data = vector(identifier)
+    assert AREA_RUNNERS["links"](data)["status"] == "pass"
+    data["expected"]["warnings"] = data["expected"]["warnings"][1:]
+    assert AREA_RUNNERS["links"](data)["status"] == "fail"
+
+
+@pytest.mark.parametrize("identifier", ["graph-0029", "graph-0030", "graph-0035",
+                                        "graph-0038"])
+def test_a_changed_reading_or_answer_fails(identifier):
+    data = vector(identifier)
+    assert AREA_RUNNERS["graph"](data)["status"] == "pass"
+    member = "readings" if "readings" in data["expected"] else "answer"
+    value = data["expected"][member]
+    data["expected"][member] = value[1:] if isinstance(value, list) else {}
+    assert AREA_RUNNERS["graph"](data)["status"] == "fail"
+
+
+def test_the_nesting_cases_count_their_warnings():
+    data = vector("fm-0026")
+    assert AREA_RUNNERS["frontmatter"](data)["status"] == "pass"
+    data["expected"]["warning_count"] = 1
+    assert AREA_RUNNERS["frontmatter"](data)["status"] == "fail"
+    data = vector("fm-0021")
+    data["expected"]["warnings"] = [{"code": "AGSC-E105", "severity": "error"}]
+    assert AREA_RUNNERS["frontmatter"](data)["status"] == "fail"
+
+
+def test_the_disclosure_page_and_the_restricted_now_line_are_asserted():
+    data = vector("build-0035")
+    data["expected"]["cases"][0]["text"] = data["expected"]["cases"][1]["text"]
+    assert AREA_RUNNERS["build"](data)["status"] == "fail"
+    data = vector("build-0036")
+    data["expected"]["cases"][1]["line"] = data["expected"]["cases"][0]["line"]
+    assert AREA_RUNNERS["build"](data)["status"] == "fail"

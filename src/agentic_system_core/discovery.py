@@ -4,7 +4,10 @@ sitemap facts, the robots groups and the link-set writer.
 Derived from the rule text:
 
 * AGSC-06-13a / 06-15 — the byte layout of both agent-facing files, the
-  provenance header and the ``-->`` neutralisation.
+  provenance header and the ``-->`` neutralisation; as amended for 1.1, the
+  blockquote summary straight after the H1 and the provenance comment after it, the
+  backslash, ``[``, ``]`` and ``(`` of a link line escaped, and no ``bundle_version``
+  line on a restricted node (AGSC-11-20).
 * AGSC-06-14 — every published item is reachable from ``/llms.txt``.
 * AGSC-06-19 — ``sitemap.xml``: every published route, by URL, ``lastmod`` the
   build instant.
@@ -78,14 +81,15 @@ def sections(items, clusters=None):
     return out
 
 
-def _header(bundle, spec_version, bundle_version, generated_at):
+def _header(bundle, spec_version, bundle_version, generated_at, restricted):
+    version = [] if restricted else ["bundle_version: %s" % _neutral(bundle_version)]
     lines = [
         "<!-- agsc:provenance",
         "bundle: %s" % _neutral(_base(bundle["base"]) + "/"),
         "license: %s" % _neutral(bundle.get("license_prose", CONTENT_USE_TERMS)),
         "terms: %s" % _neutral(terms_for(bundle.get("license_prose", CONTENT_USE_TERMS))),
         "spec_version: %s" % _neutral(spec_version),
-        "bundle_version: %s" % _neutral(bundle_version),
+    ] + version + [
         "generated_at: %s" % _neutral(generated_at),
         "assistance: %s" % ASSISTANCE,
         "-->",
@@ -93,33 +97,41 @@ def _header(bundle, spec_version, bundle_version, generated_at):
     return "\n".join(lines)
 
 
-def _index_blocks(bundle, items, clusters, spec_version, bundle_version, generated_at):
+def escape_link(text):
+    """AGSC-06-13a: one backslash before each backslash, ``[``, ``]`` and ``(``, in one pass."""
+    return "".join("\\" + char if char in "\\[](" else char for char in text)
+
+
+def _index_blocks(bundle, items, clusters, facts):
     blocks = ["# %s" % _one_line(bundle["title"]),
-              _header(bundle, spec_version, bundle_version, generated_at),
-              "> %s" % _one_line(bundle.get("description", ""))]
+              "> %s" % _one_line(bundle.get("description", "")),
+              _header(bundle, *facts)]
     order = []
     for title, members in sections(items, clusters):
         lines = ["## %s" % _one_line(title), ""]
         for item in members:
             order.append(item)
             label = _one_line(item.get("description") or item.get("title", ""))
-            lines.append("- [%s](%s): %s" % (_one_line(item.get("title", "")),
-                                             item_iri(bundle["base"], item), label))
+            lines.append("- [%s](%s): %s" % (escape_link(_one_line(item.get("title", ""))),
+                                             item_iri(bundle["base"], item),
+                                             escape_link(label)))
         blocks.append("\n".join(lines))
     return blocks, order
 
 
 def llms_txt(bundle, items, clusters=None, spec_version="", bundle_version="",
-             generated_at=""):
-    blocks, _ = _index_blocks(bundle, items, clusters, spec_version, bundle_version,
-                              generated_at)
+             generated_at="", visibility=None):
+    """``/llms.txt``; ``visibility`` is the node's (``restricted`` drops one header line)."""
+    facts = (spec_version, bundle_version, generated_at, visibility == "restricted")
+    blocks, _ = _index_blocks(bundle, items, clusters, facts)
     return "\n\n".join(blocks) + "\n"
 
 
 def llms_full_txt(bundle, items, clusters=None, spec_version="", bundle_version="",
-                  generated_at=""):
-    blocks, order = _index_blocks(bundle, items, clusters, spec_version, bundle_version,
-                                  generated_at)
+                  generated_at="", visibility=None):
+    """``/llms-full.txt``: ``/llms.txt`` through the sections, then one block per item."""
+    facts = (spec_version, bundle_version, generated_at, visibility == "restricted")
+    blocks, order = _index_blocks(bundle, items, clusters, facts)
     for item in order:
         body = (item.get("body") or "").rstrip("\n") + "\n"
         blocks.append("## %s\n<!-- agsc:item %s -->\n```text agsc-content\n%s```"

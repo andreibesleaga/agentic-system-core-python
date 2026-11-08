@@ -33,8 +33,9 @@ import re
 
 from . import context as context_module
 from . import links as links_module
+from . import relations
 from .jcs import canonicalize
-from .rdf import (ASC, DCTERMS, IRI, PROV, RDF_TYPE, SCHEMA, SKOS, XSD_DATETIME, XSD_STRING,
+from .rdf import (ASC, DCTERMS, IRI, RDF_TYPE, SCHEMA, SKOS, XSD_DATETIME, XSD_STRING,
                   Literal, nquads, turtle)
 
 TYPE_CLASS = {
@@ -54,23 +55,9 @@ def terms_for(license_prose):
         return CONTENT_USE_TERMS
     return str(license_prose)
 
-#: Link key -> (forward property, inverse property or None).  AGSC-03-01 table, AGSC-05-16.
-LINK_PROPERTIES = {
-    "related": (SKOS + "related", SKOS + "related"),
-    "broader": (SKOS + "broader", SKOS + "narrower"),
-    "narrower": (SKOS + "narrower", SKOS + "broader"),
-    "uses": (ASC + "uses", ASC + "usedBy"),
-    "requires": (DCTERMS + "requires", DCTERMS + "isRequiredBy"),
-    "excludes": (ASC + "excludes", ASC + "excludes"),
-    "derived-from": (PROV + "wasDerivedFrom", None),
-    "contradicts": (ASC + "contradicts", ASC + "contradicts"),
-    "supersedes": (DCTERMS + "replaces", DCTERMS + "isReplacedBy"),
-    "implements": (ASC + "implements", ASC + "implementedBy"),
-    "verifies": (ASC + "verifies", ASC + "isVerifiedBy"),
-    "covers": (ASC + "covers", ASC + "coveredBy"),
-    "blocked-by": (ASC + "blockedBy", ASC + "blocks"),
-    "decided-by": (ASC + "decidedBy", ASC + "decides"),
-}
+#: Link key -> (forward property, inverse property or None): the relation table of
+#: AGSC-03-01 (AGSC-05-16, AGSC-05-23), read from ``relations.py``.
+LINK_PROPERTIES = relations.LINK_PROPERTIES
 _SEMANTIC = (SKOS + "related", SKOS + "broader", SKOS + "narrower")
 
 #: AGSC-05-26 rows read straight from an item key: key -> (property, types or None, datatype).

@@ -154,6 +154,33 @@ def test_security_txt_every_fault():
     assert text is not None and found[0]["severity"] == "warn"
 
 
+def test_security_txt_policy_follows_the_declared_disclosure_page():
+    # AGSC-06-36 as amended for 1.1 (build-0035): a declared page wins over /legal/,
+    # and an authored Policy wins over both.
+    good = "Contact: mailto:a@b\n"
+    base = "https://a.example/"
+    now = "2026-01-01T00:00:00Z"
+    page = "https://a.example/disclosure/"
+    assert site.security_txt(good, now, base, True, policy=page)[0].endswith(
+        "Policy: https://a.example/disclosure/\n")
+    assert site.security_txt(good, now, base, False, policy=page)[0].endswith(
+        "Policy: https://a.example/disclosure/\n")
+    assert site.security_txt(good, now, base, True, policy="")[0].endswith(
+        "Policy: https://a.example/legal/\n")
+    kept = site.security_txt(good + "Policy: p\n", now, base, True, policy=page)[0]
+    assert "Policy: p\n" in kept and "disclosure" not in kept
+    assert "Policy" not in site.security_txt(good, now, base, False)[0]
+
+
+def test_the_now_line_of_a_restricted_node_states_neither_version_nor_fingerprint():
+    # AGSC-06-22 with AGSC-11-20 (build-0036).
+    line = site.now_line("v1", "2026-01-01T00:00:00Z", "f" * 64, "1.0.0")
+    assert line.startswith("content version v1, built at 2026-01-01T00:00:00Z, fingerprint ")
+    assert site.now_line("v1", "2026-01-01T00:00:00Z", "f" * 64, "1.0.0",
+                         visibility="restricted") \
+        == "built at 2026-01-01T00:00:00Z, specification 1.0.0"
+
+
 def test_content_version_branches_and_ledger_kinds():
     log = [{"sha": "a" * 40, "tag": "bad tag"}, {"sha": "b" * 40}]
     assert site.content_version(log, 5)[0] == "0.0.0+2.gbbbbbbbbbbbb"
@@ -174,6 +201,25 @@ def test_llms_files_neutralise_comment_closers_and_handle_cluster_items():
     text = discovery.llms_txt(bundle, items)
     assert "license: evil --&gt; x" in text and "> one two" in text and "## Cl" in text
     assert discovery.reachability("- [x](y): z\n") == {}
+
+
+def test_llms_txt_1_1_order_escapes_and_the_restricted_header():
+    # AGSC-06-13a as amended for 1.1 (disc-0024, disc-0034): the blockquote follows the
+    # H1, the provenance comment follows the blockquote, a link line escapes the
+    # backslash, `[`, `]` and `(`, and a restricted node has no bundle_version line.
+    bundle = {"base": "https://a.example/", "title": "T", "description": "D"}
+    items = [{"slug": "i", "title": "A [b] (c)\\", "description": "x](y"}]
+    text = discovery.llms_txt(bundle, items, bundle_version="v1", generated_at="G")
+    assert text.startswith("# T\n\n> D\n\n<!-- agsc:provenance\n")
+    assert "- [A \\[b\\] \\(c)\\\\](https://a.example/concepts/i/): x\\]\\(y\n" in text
+    assert "bundle_version: v1\n" in text
+    restricted = discovery.llms_txt(bundle, items, bundle_version="v1", generated_at="G",
+                                    visibility="restricted")
+    assert "bundle_version" not in restricted
+    assert discovery.reachability(text) == {"https://a.example/concepts/i/": "Other"}
+    full = discovery.llms_full_txt(bundle, items, visibility="restricted")
+    assert full.startswith(discovery.llms_txt(bundle, items, visibility="restricted"))
+    assert "\n## A [b] (c)\\\n<!-- agsc:item " in full
 
 
 def test_sitemap_robots_and_linkset_writers():

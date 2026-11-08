@@ -440,7 +440,8 @@ def run(vector):
         common = dict(clusters=given.get("clusters"),
                       spec_version=given.get("spec_version", SPEC_VERSION),
                       bundle_version=given.get("bundle_version", ""),
-                      generated_at=given.get("generated_at", ""))
+                      generated_at=given.get("generated_at", ""),
+                      visibility=given.get("visibility"))
         short = discovery.llms_txt(given["bundle"], given["items"], **common)
         full = discovery.llms_full_txt(given["bundle"], given["items"], **common)
         if have("output"):

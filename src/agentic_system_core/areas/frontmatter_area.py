@@ -1,5 +1,6 @@
 """Area ``frontmatter`` — spec/02: the YAML subset, failsafe scalars, the item
-checks, length in code points, task state and adoption.
+checks, length in code points, task state and adoption; from 1.1 the 64-level
+nesting bound of AGSC-02-02 (fm-0021, fm-0026).
 
 Every member of ``expected`` is checked; an unknown member is a failure.
 """
@@ -40,10 +41,19 @@ def run(vector):
                 lines = [one.get("line") for one in errors]
                 items.append(("line", lines == [expected["line"]], shown(lines)))
         if have("warnings"):
-            warnings = sorted(({"code": one["code"], "key": one.get("key")}
+            # Each warning is compared on the members the case states for warnings
+            # (fm-0006: code and key; fm-0021: code and severity), and the whole list
+            # must match: no warning the case does not state.
+            members = sorted(set(name for one in expected["warnings"] for name in one)) \
+                or ["code"]
+            warnings = sorted((dict((name, one.get(name)) for name in members)
                                for one in findings if one["severity"] == "warn"),
-                              key=lambda one: (one["key"] or "", one["code"]))
+                              key=lambda one: (one.get("key") or "", one["code"]))
             items.append(("warnings", warnings == expected["warnings"], shown(warnings)))
+        if have("warning_count"):
+            # fm-0026 (AGSC-02-02, the near miss of fm-0021): the number of warnings.
+            count = len([one for one in findings if one["severity"] == "warn"])
+            items.append(("warning_count", count == expected["warning_count"], shown(count)))
 
     elif isinstance(given.get("frontmatter"), dict):
         data = given["frontmatter"]

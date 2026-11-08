@@ -5,7 +5,8 @@ precedence paragraph of spec/09 §9.4), not from a JSON Schema engine, so the
 package stays standard-library only:
 
 * AGSC-02-01 / 02-02 / 02-03 — the block, the closed YAML subset, failsafe
-  scalars (:mod:`yamlsubset`).
+  scalars (:mod:`yamlsubset`); from 1.1 a frontmatter nested deeper than 64 levels
+  is the warning ``AGSC-E105`` and is still read.
 * AGSC-02-05 / 02-05a — key-name pattern (``AGSC-E204``), unknown keys preserved
   and warned (``AGSC-E207``), the ``x-`` vendor namespace never warned.
 * AGSC-02-06 — dates and instants.
@@ -362,6 +363,14 @@ def read(markdown, slug=None):
     except yamlsubset.YamlError as error:
         return None, body, [finding(error.code, error.message, line=error.line)]
     findings = check(mapping, lines=mapping.lines, slug=slug)
+    nesting = yamlsubset.depth(mapping)
+    if nesting > yamlsubset.NESTING_BOUND:
+        # AGSC-02-02 (1.1): deeper than the bound but still read is a warning, and the
+        # frontmatter is processed as authored; what cannot be read stays an error.
+        findings.append(finding(
+            "AGSC-E105", "the frontmatter is nested %d levels deep; AGSC-02-02 bounds it at "
+            "%d and it is processed as authored" % (nesting, yamlsubset.NESTING_BOUND),
+            line=1, severity="warn"))
     return typed(plain(mapping)), body, findings
 
 

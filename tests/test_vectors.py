@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from agentic_system_core import vectors
+from agentic_system_core import SPEC_VERSION, vectors
 from conftest import ENGINE, VECTORS
 
 
@@ -22,37 +22,51 @@ def codes(result):
 def test_the_shipped_vector_copies_pass_the_file_format_check():
     result, count, empty = vectors.validate(str(VECTORS))
     assert result["status"] == "pass", result["findings"]
-    assert count == 94
+    assert count == 151
     for area in vectors_module_areas():
         assert area not in empty
     assert "lint" in empty
 
 
+#: The vectors of the seven areas this package reports as not run, by reason.
+NEEDS_A_WHOLE_BUILD = [
+    "build-0015", "build-0017", "build-0020", "build-0021", "build-0022", "build-0023",
+    "build-0025", "build-0026", "build-0027", "build-0028", "build-0029", "build-0030",
+    "build-0033", "build-0034", "disc-0018", "disc-0032", "graph-0027"]
+NEEDS_A_WRITER_THIS_PACKAGE_LACKS = ["build-0031", "build-0032", "build-0037"]
+DOMAIN_LAYER = ["fm-0022", "fm-0023", "fm-0024", "fm-0025", "fm-0027", "graph-0042",
+                "graph-0044", "graph-0045", "graph-0046", "links-0018", "links-0019"]
+
+
 def test_every_vector_of_every_area_this_package_runs_passes():
     report, code = vectors.run(str(VECTORS))
+    failed = [one["id"] for one in report["results"] if one["status"] == "fail"]
+    assert failed == []
     assert code == 0
-    assert report["tally"]["fail"] == 0
-    assert report["tally"]["pass"] == 79
-    # Thirteen vectors need a whole Bundle build: reported not run, by name.
-    assert report["tally"]["not_run"] == 13
-    assert sorted(report["vectors_not_run"]) == [
-        "build-0015", "build-0017", "build-0020", "build-0021", "build-0022", "build-0023",
-        "build-0024", "build-0025", "build-0026", "build-0027", "build-0028", "disc-0018",
-        "graph-0027"]
+    assert report["tally"]["pass"] == 104
+    # Thirty-one vectors are reported not run, by name, each with its reason.
+    not_run = NEEDS_A_WHOLE_BUILD + NEEDS_A_WRITER_THIS_PACKAGE_LACKS + DOMAIN_LAYER
+    assert report["tally"]["not_run"] == len(not_run) == 31
+    assert sorted(report["vectors_not_run"]) == sorted(not_run)
+    for identifier in DOMAIN_LAYER:
+        assert report["vectors_not_run"][identifier] == "domain layer: engine only in 1.1"
+    assert report["tally"]["withdrawn"] == 6
     assert report["areas_run"] == vectors_module_areas()
     assert report["areas_not_run"] == {}
-    assert "79 pass" in report["summary"]
-    assert "13 not run by this package" in report["summary"]
+    assert "104 pass" in report["summary"]
+    assert "31 not run by this package" in report["summary"]
 
 
 def test_a_level_selects_its_area_set():
     report, _ = vectors.run(str(VECTORS), level=0)
     # Level 0 runs frontmatter, slug, bundle and discovery only (AGSC-10-02), less the
     # discovery cases AGSC-10-15 assigns to a higher Level: five discovery cases remain.
-    assert report["total"] == 22 + 6 + 5
-    assert report["tally"]["pass"] == 22 + 6 + 5
+    # The two withdrawn discovery cases of 1.0 are skipped, never counted as a pass.
+    assert report["total"] == 22 + 7 + 8
+    assert report["tally"]["pass"] == 22 + 7 + 6
+    assert report["tally"]["withdrawn"] == 2
     report, _ = vectors.run(str(VECTORS), level=3)
-    assert report["total"] == 94
+    assert report["total"] == 151
 
 
 @pytest.mark.skipif(not (ENGINE / "spec").is_dir(), reason="the engine checkout is not here")
@@ -78,6 +92,23 @@ def test_an_area_this_package_does_not_run_is_named_never_skipped(tmp_path):
     assert report["results"][0]["status"] == "not-run"
     assert "lint" in report["areas_not_run"]
     assert "not run by this package" in report["summary"]
+
+
+def test_a_case_of_an_area_not_run_can_carry_its_own_reason(tmp_path):
+    # bundle-0018 and bundle-0019 need the diagram compiler, not only the Bundle loader;
+    # the area keeps its own reason in areas_not_run.
+    area = tmp_path / "bundle"
+    area.mkdir()
+    for identifier in ("bundle-0001", "bundle-0018"):
+        vector = {"area": "bundle", "description": "A fixture.", "expected": {},
+                  "id": identifier, "input": {}, "level": "required", "rule": "AGSC-01-42"}
+        (area / (identifier + ".json")).write_bytes(
+            json.dumps(vector, separators=(",", ":")).encode("utf-8") + b"\n")
+    report, _ = vectors.run(str(tmp_path))
+    details = dict((one["id"], one["detail"]) for one in report["results"])
+    assert details["bundle-0018"] == "needs the diagram compiler (Level 3)"
+    assert details["bundle-0001"] == report["areas_not_run"]["bundle"]
+    assert "Bundle loader" in report["areas_not_run"]["bundle"]
 
 
 def test_the_pending_list_is_the_engines(tmp_path):
@@ -301,10 +332,13 @@ def test_a_file_that_is_not_json_is_e201(tmp_path):
 
 def test_the_bundled_spec_index_is_the_one_the_specification_declares():
     index = vectors.bundled_spec_index()
-    assert index["spec_version"] == "1.0.0"
+    # One constant names the version the package implements (B13 moves both to 1.1.0).
+    assert index["spec_version"] == SPEC_VERSION
     assert "AGSC-04-05" in index["rule_ids"]
     assert "AGSC-E201" in index["error_codes"]
-    assert len(index["error_codes"]) == 91  # AGSC-E416 registered 2026-09-24
+    # 1.1 registers AGSC-E005, E313 to E317, E417 to E423 and E512 (spec/09 section 9.4).
+    assert len(index["error_codes"]) == 105
+    assert "AGSC-E313" in index["error_codes"] and "AGSC-03-23" in index["rule_ids"]
 
 
 def test_the_index_reads_the_declaration_not_a_candidate_quoted_as_history(tmp_path):
@@ -327,6 +361,9 @@ def test_the_bundled_index_agrees_with_the_live_specification():
                     reason="the engine checkout is not here")
 def test_the_shipped_copies_are_the_engines_bytes():
     for area in vectors_module_areas():
+        # Every file of the engine's area is here, and nothing else is.
+        assert sorted(os.listdir(str(VECTORS / area))) == \
+            sorted(os.listdir(str(ENGINE / "tests" / "vectors" / area))), area
         for name in sorted(os.listdir(str(VECTORS / area))):
             ours = (VECTORS / area / name).read_bytes()
             theirs = (ENGINE / "tests" / "vectors" / area / name).read_bytes()

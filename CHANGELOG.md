@@ -19,6 +19,20 @@ differently (SemVer's `1.1.0-rc.1` is `1.1.0rc1` here).
 - Changed: the source distribution ships `SECURITY.md` and `data/context.jsonld`.
 - Tests: the environment variable `AGSC_ENGINE_DIR` names the engine checkout the suite compares with; unset, it is `../agentic-system-core` as before.
 - Tests: two fitness functions: the package imports only the standard library, and only `cli.py` starts a process.
+- Changed: the vector copies under `tests/fixtures/vectors/` are the 1.1 engine's seven areas (151 files; `disc-0013`, `disc-0014`, `disc-0019` and `build-0024` are withdrawn there), and the drift test also fails when a file is missing or extra (AGSC-09-04; EARS row PRD-010).
+- Changed: `data/spec-index.json` is regenerated from the 1.1 specification: 385 rules and 105 registered codes, among them AGSC-E005, AGSC-E313 to E317, AGSC-E417 to E423 and AGSC-E512 (AGSC-09-15; PRD-010); the declared version stays the one constant `SPEC_VERSION`.
+- Changed: `HIGHER_LEVEL_CASES` is the AGSC-10-15 table as amended for 1.1.0 (72 cases; PRD-010).
+- Added: `relations.py` and `data/relations.json`, the relation table of AGSC-03-01 as the engine's `src/knowledge/relations.js` holds it; `links.py` and `graph.py` read their key lists, inverses and RDF properties from it instead of their own copies (AGSC-03-01, AGSC-05-16; PRD-002).
+- Added: `links.link_warnings`, the warnings AGSC-E313 (a self-link, AGSC-03-23), AGSC-E314 (two relations a pair cannot both hold, AGSC-03-24), AGSC-E315 (a target of an unexpected kind, AGSC-03-25) and AGSC-E316 (superseding a stable item, AGSC-03-26); `run-vectors` passes `links-0010` to `links-0017` (PRD-003).
+- Added: `derive.readings`, the readings of the Link graph with their reasons (AGSC-05-33, `graph-0029`), as the engine's `src/knowledge/derive.js` gives them (PRD-023; the 1.1 EARS row comes with the engine's B12 requirements pass).
+- Added: `questions.answer`, the ten questions of AGSC-05-34 (`graph-0030` to `graph-0039`), as the engine's `src/knowledge/questions.js` answers them (PRD-023; 1.1 EARS row as above).
+- Added: `skos.skos_view` and `skos.scheme_record`, the SKOS view `export --skos` writes, byte for byte (AGSC-05-36, `graph-0040`; PRD-060); `rdf.turtle` takes the prefix block it writes.
+- Added: a frontmatter nested deeper than 64 levels is the warning AGSC-E105 and is still read (AGSC-02-02 as amended for 1.1, `fm-0021`, `fm-0026`; PRD-003); `yamlsubset.depth` counts block nesting.
+- Changed: `/llms.txt` and `/llms-full.txt` follow the 1.1 layout: the blockquote straight after the H1, then the provenance comment, the backslash, `[`, `]` and `(` of a link line escaped, and no `bundle_version` line on a restricted node (AGSC-06-13a as amended for 1.1, AGSC-11-20; `disc-0024`, `disc-0025`, `disc-0034`; PRD-060).
+- Added: `site.security_txt(..., policy=)` writes the declared disclosure page as `Policy` (AGSC-06-36 as amended for 1.1, `build-0035`; PRD-047), and `site.now_line(..., visibility=)` gives a restricted node's line without the content version and the fingerprint (AGSC-06-22 with AGSC-11-20, `build-0036`; PRD-010).
+- Changed: `run-vectors` reports as not run, each with its reason, the cases it cannot run: `build-0031` and `build-0032` (it writes no HTML), `build-0037` (it has no chunk writer), and the domain-layer cases `fm-0022` to `fm-0025`, `fm-0027`, `graph-0042`, `graph-0044` to `graph-0046`, `links-0018`, `links-0019` ("domain layer: engine only in 1.1"), 31 by name with the whole-build cases (AGSC-09-02; PRD-010).
+- Changed: `bundle-0018` and `bundle-0019` (the `.diagram` grammar, AGSC-01-42) are reported not run with the reason "needs the diagram compiler (Level 3)"; the `bundle` area keeps its own reason (PRD-010).
+- Tests: `test_link_parity.py` compares the Link warnings, the readings and the ten answers with the engine's on 120 seeded generated graphs; a fitness function keeps one source for the relation table.
 
 ## [1.0.1] - 2026-10-21
 

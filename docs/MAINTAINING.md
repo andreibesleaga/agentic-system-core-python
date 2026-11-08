@@ -17,6 +17,13 @@ the sixteen engine verbs, to the npm package's `agsc` when it is on the `PATH`. 
 README's "What runs here" and "What forwards to Node" sections are the detail.
 [ARCHITECTURE.md](ARCHITECTURE.md) draws the parts and how they call each other.
 
+Inside the seven areas, a case is reported as not run, with its reason, when it needs
+a whole build, a writer this package does not carry (HTML pages, the chunk files), or
+the domain layer, which only the engine checks in 1.1; the reason of the last is
+`domain layer: engine only in 1.1`. The cases and reasons are in
+`src/agentic_system_core/areas/__init__.py` (`CASES_NOT_RUN`) and the handlers, and
+the README lists them by name; `tests/test_readme_counts.py` keeps the two in step.
+
 ## The equivalence proof
 
 `tests/test_equivalence.py` runs this package's discovery-file checker and the engine's
@@ -41,6 +48,16 @@ set `AGSC_ENGINE_DIR` to its path; unset or empty, the suite uses
 ```bash
 AGSC_ENGINE_DIR=../agentic-system-core-1.1 .venv/bin/python -m pytest
 ```
+
+On the `next-1.1` branch the vector copies, the rule index and the relation table are
+the 1.1 engine's, so the suite agrees with a 1.1 engine checkout; run it with
+`AGSC_ENGINE_DIR` naming one. Against a 1.0 checkout the drift tests and the
+equivalence proof fail, as they should: they compare with another version.
+
+`tests/test_link_parity.py` is a property test against the same checkout: a seeded
+generator (the same 120 item sets on every run) draws Link graphs, and the engine's
+`links.resolve`, `derive.readings` and `questions.answer` must give what this package's
+`links.link_warnings`, `derive.readings` and `questions.answer` give.
 
 Two more proofs need the same checkout and Node, and are skipped with a message without
 them. `tests/test_graph_jsonld.py` checks that the shipped context is the one the
@@ -84,7 +101,24 @@ The rule index (`src/agentic_system_core/data/spec-index.json`) is derived, neve
 typed. From this repository's root, with the engine beside it:
 
 ```bash
-PYTHONPATH=src python3 -c "import json; from agentic_system_core import vectors; open('src/agentic_system_core/data/spec-index.json', 'w').write(json.dumps(vectors.spec_index_from('../agentic-system-core/spec'), sort_keys=True) + '\n')"
+ENGINE="${AGSC_ENGINE_DIR:-../agentic-system-core}"
+PYTHONPATH=src python3 -c "import json, sys; from agentic_system_core import vectors; open('src/agentic_system_core/data/spec-index.json', 'w').write(json.dumps(vectors.spec_index_from(sys.argv[1] + '/spec'), sort_keys=True) + '\n')" "$ENGINE"
+```
+
+The higher-Level case table of AGSC-10-15 (`HIGHER_LEVEL_CASES` in
+`src/agentic_system_core/vectors.py`) is the table of `spec/10-implementation-profiles.md`;
+`tests/test_vectors.py` reads the specification's table and fails when the two differ.
+
+The relation table of AGSC-03-01 (`src/agentic_system_core/data/relations.json`: the
+fourteen Link keys, their inverses, RDF properties, self-link readings and Expected
+target kinds) is the engine's `src/knowledge/relations.js`, written out by Node, never
+typed. `links.py`, `graph.py`, `derive.py` and `questions.py` read it through
+`relations.py`; the suite fails when it drifts, and a fitness test fails when a module
+spells out a computed inverse name instead of reading the table:
+
+```bash
+ENGINE="${AGSC_ENGINE_DIR:-../agentic-system-core}"
+node -e "const r = require(require('node:path').resolve(process.argv[1], 'src/knowledge/relations.js')); process.stdout.write(JSON.stringify({ relations: r.RELATIONS }, null, 2) + '\n');" "$ENGINE" > src/agentic_system_core/data/relations.json
 ```
 
 The vector copies under `tests/fixtures/vectors/` are byte-for-byte copies of the

@@ -16,30 +16,31 @@ and inline-link resolution — spec/03, derived from the rule text.
   that carries it, to an item, an asset or an anchor of one; otherwise
   ``AGSC-E310``, and ``AGSC-E902`` when it escapes the Bundle root.
 * AGSC-03-13 — the heading-anchor algorithm.
+* AGSC-03-23 to 03-26 (1.1) — four warnings about what an authored Link says, each
+  carried by the item that authors it: a self-link (``AGSC-E313``), two relations a
+  pair cannot both hold (``AGSC-E314``), a target of a kind the key does not expect
+  (``AGSC-E315``), a ``supersedes`` target still stable (``AGSC-E316``).
+
+The key list, the inverses and each key's self-link reading and Expected target kinds
+are the relation table of AGSC-03-01, read from ``relations.py``.
 """
 
 import unicodedata
 
 from . import markdown
+from .relations import COMPUTED_KEYS, INVERSE, KEYS, ROW
+# Re-exported, as this module has always named them (the relation table is their source).
+from .relations import CORE_KEYS as CORE_KEYS
+from .relations import MODE2_KEYS as MODE2_KEYS
+from .relations import SYMMETRIC as SYMMETRIC
 
-CORE_KEYS = ("related", "broader", "narrower", "uses", "requires", "excludes",
-             "derived-from", "contradicts", "supersedes")
-MODE2_KEYS = ("implements", "verifies", "covers", "blocked-by", "decided-by")
-KEYS = CORE_KEYS + MODE2_KEYS
-
-#: authored key -> computed inverse key (AGSC-03-01 table).
-INVERSE = {
-    "related": "related", "broader": "narrower", "narrower": "broader", "uses": "used-by",
-    "requires": "required-by", "excludes": "excludes", "derived-from": "derivation-of",
-    "contradicts": "contradicts", "supersedes": "superseded-by",
-    "implements": "implemented-by", "verifies": "verified-by", "covers": "covered-by",
-    "blocked-by": "blocks", "decided-by": "decides",
-}
-SYMMETRIC = ("related", "excludes", "contradicts")
 #: AGSC-03-04: the inverse names that may never be authored.
-AUTHORED_INVERSE_FORBIDDEN = ("used-by", "required-by", "derivation-of", "superseded-by",
-                              "implemented-by", "verified-by", "covered-by", "blocks",
-                              "decides")
+AUTHORED_INVERSE_FORBIDDEN = COMPUTED_KEYS
+#: AGSC-03-24: the combinations a pair (A, B) must not hold. A authors the first key;
+#: the second may be authored by either side, as AGSC-03-05 runs ``excludes`` and
+#: ``contradicts`` both ways.
+INCOMPATIBLE = (("requires", "excludes"), ("requires", "supersedes"),
+                ("requires", "contradicts"), ("uses", "excludes"))
 
 TYPE_PLURAL = {
     "concept": "concepts", "lesson": "lessons", "episode": "episodes",
@@ -97,6 +98,81 @@ def edges(items):
            for (source, key, target), computed in seen.items()]
     out.sort(key=lambda one: (one["source"], one["key"], one["target"]))
     return out, findings
+
+
+def warn(code, message, slug, key):
+    return {"code": code, "key": key, "message": message, "severity": "warn", "slug": slug}
+
+
+def _family(kind):
+    """AGSC-03-25: ``concept`` and ``lesson`` are one family; every other type is its own."""
+    return "concept" if kind == "lesson" else kind
+
+
+def _is_kind(spec, target):
+    """One alternative of a cell: the target's type, and its ``kind`` where the cell names kinds."""
+    return target.get("type") == spec["type"] and (
+        "kinds" not in spec or target.get("kind") in spec["kinds"])
+
+
+def matches_expected(cell, owner, target):
+    """AGSC-03-25: does ``target`` fit the Expected target kinds cell of a key ``owner`` authors?
+
+    A cell reading ``any`` never fails, except that the narrower cell of ``derived-from``
+    binds when the owner is a lesson.
+    """
+    if cell.get("any"):
+        lesson = cell.get("lessonTarget")
+        return lesson is None or owner.get("type") != "lesson" or _is_kind(lesson, target)
+    if cell.get("sameFamily"):
+        return _family(owner.get("type")) == _family(target.get("type"))
+    if cell.get("sameType"):
+        return owner.get("type") == target.get("type")
+    if "oneOf" in cell:
+        return any(_is_kind(spec, target) for spec in cell["oneOf"])
+    return _is_kind(cell, target)
+
+
+def _about_link(owner, key, target):
+    """AGSC-03-23, 03-25, 03-26: the warnings about one authored, resolved Link."""
+    out = []
+    slug = owner["slug"]
+    if slug == target["slug"] and ROW[key]["selfLink"] == "warning":
+        out.append(warn("AGSC-E313", "%s lists itself under %s" % (slug, key), slug, key))
+    if not matches_expected(ROW[key]["targets"], owner, target):
+        out.append(warn("AGSC-E315", "%s of %s names %s, a %s not of the kind the key expects"
+                        % (key, slug, target["slug"], target.get("type")), slug, key))
+    if key == "supersedes" and target.get("status", "stable") == "stable":
+        out.append(warn("AGSC-E316", "%s supersedes %s, whose status is still stable"
+                        % (slug, target["slug"]), slug, key))
+    return out
+
+
+def link_warnings(items):
+    """AGSC-03-23 to 03-26: the warnings about what the authored Links say.
+
+    Each authored Link that resolves is judged once per (item, key, target); the pairs
+    of AGSC-03-24 are read over the edges after the symmetric keys run both ways.
+    """
+    by_slug = dict((item["slug"], item) for item in items)
+    judged = set()
+    out = []
+    for item in sorted(items, key=lambda one: one["slug"]):
+        for key, values in authored_links(item):
+            for value in values:
+                target = by_slug.get(target_slug(value)[0])
+                if target is None or (item["slug"], key, target["slug"]) in judged:
+                    continue
+                judged.add((item["slug"], key, target["slug"]))
+                out.extend(_about_link(item, key, target))
+    found, _ = edges(items)
+    held = set((one["source"], one["key"], one["target"]) for one in found)
+    for first, second in INCOMPATIBLE:
+        for source, key, target in sorted(held):
+            if key == first and source != target and (source, second, target) in held:
+                out.append(warn("AGSC-E314", "%s holds %s and %s toward %s, which cannot both "
+                                "hold" % (source, first, second, target), source, first))
+    return out
 
 
 def requires_cycle(items):

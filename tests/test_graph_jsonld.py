@@ -13,6 +13,7 @@ import subprocess
 import pytest
 
 from agentic_system_core import context, graph
+from agentic_system_core.areas import CASES_NOT_RUN
 from agentic_system_core.jcs import canonicalize
 from agentic_system_core.rdf import ASC, DCTERMS, IRI, RDFS, SKOS, XSD_DATETIME, Literal
 from conftest import ENGINE, VECTORS, engine_available
@@ -94,9 +95,18 @@ needs_engine = pytest.mark.skipif(
     reason="the JSON-LD parity proof needs Node and the engine checkout beside this one",
 )
 
-#: The graph vectors that state a dataset (items and a base).
+def _states_a_dataset(vector):
+    """Items and a base, and not a domain-layer case (a site vocabulary or a warrant
+    adds triples the engine alone writes in 1.1, CASES_NOT_RUN)."""
+    given = vector["input"]
+    base = (given.get("site") or {}).get("base") or given.get("base")
+    return isinstance(given.get("items"), list) and base is not None \
+        and vector["id"] not in CASES_NOT_RUN
+
+
+#: The graph vectors that state a dataset.
 DATASETS = sorted(one for one in (VECTORS / "graph").glob("*.json")
-                  if isinstance(json.loads(one.read_bytes())["input"].get("items"), list))
+                  if _states_a_dataset(json.loads(one.read_bytes())))
 
 _SCRIPT = r"""
 const path = require('node:path');

@@ -273,3 +273,35 @@ def test_adoption_defaults_and_edge_cases():
 ])
 def test_slugify_lower_cases_a_to_z_only(stem, expected):
     assert frontmatter.slugify(stem) == expected
+
+
+# --- the nesting bound of AGSC-02-02 (1.1) -----------------------------------------
+
+ITEM_HEAD = ("type: concept\ntitle: Nested\ndescription: A case of the nesting bound of the frontmatter reader.\n"
+             "kind: term\nprov:\n  origin: human\n  operator: human:x\n")
+
+
+def nested(levels):
+    """A frontmatter whose deepest block collection is ``levels`` deep, the mapping
+    itself being level 1: ``x-acme-nest`` (a vendor key) opens level 2, each further ``a:`` one more."""
+    lines = ["x-acme-nest:"] + ["  " * depth + "a:" for depth in range(1, levels - 1)]
+    lines.append("  " * (levels - 1) + "leaf: end")
+    return "---\n" + ITEM_HEAD + "\n".join(lines) + "\n---\nBody.\n"
+
+
+def test_the_depth_counts_block_collections_and_not_flow_sequences():
+    assert yamlsubset.depth(yamlsubset.load("a: x\n")) == 1
+    assert yamlsubset.depth(yamlsubset.load("a:\n  b: x\n")) == 2
+    assert yamlsubset.depth(yamlsubset.load("a: [x, y]\n")) == 1
+    assert yamlsubset.depth(yamlsubset.load("a:\n  - x\n  - b: y\n")) == 3
+    assert yamlsubset.depth(yamlsubset.Mapping()) == 1
+
+
+def test_sixty_four_levels_are_silent_and_sixty_five_warn_and_still_read():
+    data, _, findings = frontmatter.read(nested(64))
+    assert [one for one in findings if one["severity"] == "warn"] == []
+    data, _, findings = frontmatter.read(nested(65))
+    warned = [one for one in findings if one["code"] == "AGSC-E105"]
+    assert [(one["severity"], one["line"]) for one in warned] == [("warn", 1)]
+    assert [one for one in findings if one["severity"] == "error"] == []
+    assert data is not None and "x-acme-nest" in data

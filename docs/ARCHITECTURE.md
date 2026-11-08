@@ -53,19 +53,35 @@ flowchart TD
     areas --> wellknown
     areas --> rdf
 
+    areas --> derive["derive.py<br/>readings"]
+    areas --> questions["questions.py<br/>ten questions"]
+    areas --> skos["skos.py<br/>SKOS view"]
+
     frontmatter --> yamlsubset["yamlsubset.py"]
     frontmatter --> slug
     frontmatter --> links
     links --> markdown["markdown.py"]
+    links --> relations["relations.py<br/>relation table"]
+    relations --> table[("data/relations.json")]
     graphmod --> links
+    graphmod --> relations
     graphmod --> rdf["rdf.py"]
     graphmod --> context
     context --> rdf
+    derive --> relations
+    questions --> links
+    questions --> relations
+    skos --> rdf
     discovery --> graphmod
     discovery --> links
 
     reader["reader.py<br/>reading API"]
 ```
+
+The relation table of AGSC-03-01 has one source in the package: `relations.py` reads
+`data/relations.json`, the engine's table written out by Node, and every module that
+needs a key, an inverse or a property takes it from there (`tests/test_architecture.py`
+fails when a module spells out a computed inverse name).
 
 `areas/build_tree.py` checks the files a whole build wrote against the nine `build`
 cases that need one (`build-0020` to `build-0028`). It builds nothing: the caller passes
