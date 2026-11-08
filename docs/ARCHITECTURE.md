@@ -41,6 +41,7 @@ flowchart TD
     wellknown --> net["net.py<br/>guarded HTTP reader"]
     vectors --> areas["areas/<br/>one handler per area"]
     vectors --> index[("data/spec-index.json")]
+    context --> published[("data/context.jsonld")]
 
     areas --> frontmatter["frontmatter.py"]
     areas --> slug["slug.py"]
@@ -58,12 +59,17 @@ flowchart TD
     links --> markdown["markdown.py"]
     graphmod --> links
     graphmod --> rdf["rdf.py"]
+    graphmod --> context
     context --> rdf
     discovery --> graphmod
     discovery --> links
 
     reader["reader.py<br/>reading API"]
 ```
+
+`areas/build_tree.py` checks the files a whole build wrote against the nine `build`
+cases that need one (`build-0020` to `build-0028`). It builds nothing: the caller passes
+a function that runs a build, and the test suite passes one that runs the engine's.
 
 `reader.py` stands apart: no other module imports it, and it imports only the package
 constants, `urls.py` and `jcs.py`. It never opens a connection; a fetcher is passed in by

@@ -4,7 +4,8 @@ A security report goes to private vulnerability reporting first and to the conta
 second, never to a public issue; an outside contribution signs off under the
 contributor agreement ``CA-v1``. GitHub shows these files on the repository's pages, so
 a missing or wrong file sends a reporter to the wrong place. The files are repository
-files: a source distribution does not carry them, and there the tests are skipped.
+files: a source distribution carries only ``SECURITY.md`` of them, and there the tests
+are skipped.
 """
 
 import re

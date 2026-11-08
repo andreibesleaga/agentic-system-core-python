@@ -40,6 +40,24 @@ def _export_blocks(markdown_text):
     return blocks
 
 
+def _jsonld_files(given, expected, base):
+    """graph-0028 (AGSC-05-09, AGSC-06-02): graph.jsonld and each per-item file, whole,
+    compared after JCS; the per-item files are exactly one per item."""
+    bundle, data, url = given.get("bundle"), given.get("attachment_bytes"), given.get("context_url")
+    whole = graph_module.to_jsonld(given["items"], base, bundle, data, context_url=url)
+    out = [("graph.jsonld", canonicalize(whole) == canonicalize(expected.get("graph_jsonld")),
+            canonicalize(whole))]
+    wanted = expected.get("per_item", {})
+    slugs = sorted(item["slug"] for item in given["items"])
+    out.append(("per-item files", slugs == sorted(wanted), shown(slugs)))
+    for item in given["items"]:
+        single = graph_module.to_jsonld([item], base, bundle, data, context_url=url)
+        one = canonicalize(graph_module.restrict_to(whole, single))
+        out.append(("pages/%s.jsonld" % item["slug"],
+                    item["slug"] in wanted and one == canonicalize(wanted[item["slug"]]), one))
+    return out
+
+
 def run(vector):
     given = vector["input"]
     expected = vector["expected"]
@@ -47,11 +65,6 @@ def run(vector):
         # graph-0027 and its kind: the real lint and build over a whole Bundle.
         return {"status": "not-run",
                 "detail": "needs the real lint and build over a whole Bundle; not implemented by this package"}
-    if "graph_jsonld" in expected:
-        # graph-0028: the publisher's JSON-LD files, whole. This package compacts only for
-        # the context round trip of AGSC-06-32 and writes no graph.jsonld of its own.
-        return {"status": "not-run",
-                "detail": "needs the publisher's graph.jsonld writer; not implemented by this package"}
     items = []
     handled = set()
 
@@ -73,6 +86,8 @@ def run(vector):
         if have("prefix_block_is_constant"):
             items.append(("prefix-block", ttl.startswith(prefix_block() + "\n")
                           == expected["prefix_block_is_constant"], shown(ttl[:400])))
+        if any([have("graph_jsonld"), have("per_item")]):
+            items.extend(_jsonld_files(given, expected, base))
         if have("turtle_never_contains"):
             items.append(("turtle-never-contains", expected["turtle_never_contains"] not in ttl,
                           expected["turtle_never_contains"]))

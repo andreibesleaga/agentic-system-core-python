@@ -33,6 +33,24 @@ demo node (its built `www/` is committed there; the public `agsc-demo-node` does
 commit `www/`), so CI checks out only the main site and the patterns node's discovery
 file is read on the maintainer's machine.
 
+To compare with another engine checkout (a second worktree of a release branch, say),
+set `AGSC_ENGINE_DIR` to its path; unset or empty, the suite uses
+`../agentic-system-core`. Every test that runs the engine reads it from there
+(`tests/conftest.py`, `engine_dir`):
+
+```bash
+AGSC_ENGINE_DIR=../agentic-system-core-1.1 .venv/bin/python -m pytest
+```
+
+Two more proofs need the same checkout and Node, and are skipped with a message without
+them. `tests/test_graph_jsonld.py` checks that the shipped context is the one the
+engine derives and that this package's `graph.jsonld` and per-item files equal the
+engine's for every graph vector that states a dataset. `tests/test_build_cross_check.py`
+has the engine build the Bundle of each of `build-0020` to `build-0028`, the way the
+engine's own handler does, and `agentic_system_core/areas/build_tree.py` checks every
+expectation of the vector against the files written. `run-vectors` still reports those
+nine cases as not run, because this package writes no site.
+
 ## Tests
 
 ```bash
@@ -71,7 +89,24 @@ PYTHONPATH=src python3 -c "import json; from agentic_system_core import vectors;
 
 The vector copies under `tests/fixtures/vectors/` are byte-for-byte copies of the
 engine's `tests/vectors/<area>/` for the seven areas; the suite fails when they drift,
-and the fix is to copy the files again, never to edit them.
+and the fix is to copy the files again, never to edit them:
+
+```bash
+ENGINE="${AGSC_ENGINE_DIR:-../agentic-system-core}"
+for area in build discovery frontmatter graph jcs links slug; do
+  rm -r "tests/fixtures/vectors/$area" && cp -R "$ENGINE/tests/vectors/$area" tests/fixtures/vectors/
+done
+```
+
+The published JSON-LD context (`src/agentic_system_core/data/context.jsonld`, the bytes
+a node serves at `/ns/context.jsonld`) is the engine's `tools/gen-ns` output, never
+typed; `graph.jsonld` is compacted with it, and the suite fails when it drifts:
+
+```bash
+ENGINE="${AGSC_ENGINE_DIR:-../agentic-system-core}"
+out="$(mktemp -d)" && node "$ENGINE/tools/gen-ns" --quiet --out "$out" \
+  && cp "$out/context.jsonld" src/agentic_system_core/data/context.jsonld && rm -r "$out"
+```
 
 ## Releases
 

@@ -9,12 +9,15 @@ rule text of the specification:
 * ``jcs`` — RFC 8785 canonical JSON, NFC before sorting.
 * ``links`` — Link keys, inverses, cycles, the cluster tree, anchors and
   inline-link resolution over a small CommonMark scanner.
-* ``graph`` — the RDF dataset, canonical N-Quads, the stable-Turtle profile and
-  the JSON-LD context.
+* ``graph`` — the RDF dataset, canonical N-Quads, the stable-Turtle profile,
+  ``graph.jsonld`` with the per-item files, and the JSON-LD context.
 * ``build`` — the search index and tokenizer, fragments, headers,
   ``security.txt`` and the content version.
 * ``discovery`` — ``/llms.txt``, ``/llms-full.txt``, reachability, sitemap and
   robots facts, and the link set.
+
+``build_tree`` is not an area runner: it checks the nine ``build`` cases that need a
+whole build (build-0020 to build-0028) against the files another writer built.
 
 Every other area needs something this package does not carry: a Bundle build,
 the engine's composition, governance, ledger or boundary modules, or its

@@ -4,7 +4,8 @@ AGSC-06-33 (fragments), AGSC-06-17 (headers and the page policy), AGSC-06-36
 
 Every member of ``expected`` is checked; an unknown member is a failure.  A
 vector whose input is a whole Bundle (``bundle`` or inline ``files``) needs a
-site build this package does not carry, and is reported as not run, by name.
+site build this package does not carry, and is reported as not run, by name;
+``build_tree.py`` checks build-0020 to build-0028 over a tree another writer built.
 """
 
 from .. import site

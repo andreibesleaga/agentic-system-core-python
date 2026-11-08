@@ -1,7 +1,9 @@
 include README.md
 include CHANGELOG.md
 include LICENSE
+include SECURITY.md
 recursive-include src/agentic_system_core/data *.json
+recursive-include src/agentic_system_core/data *.jsonld
 recursive-include tests *.py
 recursive-include tests/fixtures *
 global-exclude __pycache__/*

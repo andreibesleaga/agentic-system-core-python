@@ -18,14 +18,24 @@ Derived from the rule text of spec/05 (and AGSC-11-22 for ``asc:retiredAt``):
 The Bundle node and the two licence rows are emitted when the Bundle's
 configuration is given (``bundle``).  Every line of ``graph.nq`` is a quad
 whose graph name is the Bundle IRI (AGSC-04-15).
+
+``graph.jsonld`` (AGSC-05-09) is written from the same triples, so the views
+cannot drift (AGSC-05-06): one node per subject in code-point order of ``@id``,
+each predicate under the term name of the published context (AGSC-06-32), one
+value bare and several as a sorted array.  ``/pages/<slug>.jsonld`` (AGSC-06-02)
+is the one-item view with each node taken from the whole graph.  The writer
+follows the engine's ``src/knowledge/jsonld.js`` (``toJsonLd``, ``restrictTo``);
+it is a JSON writer, not a JSON-LD processor (AGSC-05-11).
 """
 
 import hashlib
 import re
 
+from . import context as context_module
 from . import links as links_module
-from .rdf import (ASC, DCTERMS, IRI, PROV, RDF_TYPE, SCHEMA, SKOS, XSD_DATETIME, Literal,
-                  nquads, turtle)
+from .jcs import canonicalize
+from .rdf import (ASC, DCTERMS, IRI, PROV, RDF_TYPE, SCHEMA, SKOS, XSD_DATETIME, XSD_STRING,
+                  Literal, nquads, turtle)
 
 TYPE_CLASS = {
     "concept": ASC + "Concept", "lesson": ASC + "Lesson", "episode": ASC + "Episode",
@@ -250,3 +260,108 @@ def to_nquads(items, site_base, bundle=None, attachment_bytes=None):
 
 def to_turtle(items, site_base, bundle=None, attachment_bytes=None):
     return turtle(dataset(items, site_base, bundle, attachment_bytes))
+
+
+# --- graph.jsonld (AGSC-05-09) ------------------------------------------------------
+
+def compaction_table(context_document):
+    """What the writer compacts with: ``terms``, IRI -> {"name", "type"} of its term
+    definition, and ``prefixes``, the (name, namespace) pairs of the plain string
+    definitions (``asc``, ``dcterms``, ... in a context of AGSC-06-32)."""
+    terms, prefixes = {}, []
+    for name, definition in context_document.get("@context", {}).items():
+        if isinstance(definition, str) and not name.startswith("@"):
+            prefixes.append((name, definition))
+        elif isinstance(definition, dict) and definition.get("@id"):
+            terms[context_module.expand_curie(definition["@id"])] = {
+                "name": name, "type": definition.get("@type")}
+    return {"terms": terms, "prefixes": prefixes}
+
+
+def prefixed(value, table):
+    """An IRI under a prefix of the context as its compact IRI (``asc:warrant``), else
+    itself: the form a JSON-LD processor's re-compaction writes (AGSC-06-32)."""
+    for prefix, namespace in table["prefixes"]:
+        if len(value) > len(namespace) and value.startswith(namespace):
+            return "%s:%s" % (prefix, value[len(namespace):])
+    return value
+
+
+def compact_name(value, table):
+    """A member name, a class or a datatype: its term name, else :func:`prefixed`."""
+    term = table["terms"].get(value)
+    return term["name"] if term else prefixed(value, table)
+
+
+def json_value(obj, definition, table):
+    """One object in the most compact form its term definition allows (AGSC-05-31)."""
+    selects_iris = definition is not None and definition["type"] == "@id"
+    if isinstance(obj, IRI):
+        value = prefixed(obj.value, table)
+        return value if selects_iris else {"@id": value}
+    if obj.lang is not None:
+        return {"@language": obj.lang, "@value": obj.value}
+    datatype = obj.datatype or XSD_STRING
+    if selects_iris:
+        # A bare string under an @id term would be read as an IRI.
+        return {"@type": compact_name(datatype, table), "@value": obj.value}
+    if (definition is not None and definition["type"] == datatype) or datatype == XSD_STRING:
+        return obj.value
+    return {"@type": compact_name(datatype, table), "@value": obj.value}
+
+
+def _value_key(value):
+    if isinstance(value, str):
+        return value
+    return value.get("@id") or value.get("@value") or ""
+
+
+def _members(objects, definition, table):
+    """The values of one predicate: sorted, one per key, bare when there is one."""
+    values = sorted((json_value(obj, definition, table) for obj in objects),
+                    key=lambda value: (_value_key(value), canonicalize(value)))
+    unique, seen = [], set()
+    for value in values:
+        if _value_key(value) not in seen:
+            seen.add(_value_key(value))
+            unique.append(value)
+    return unique[0] if len(unique) == 1 else unique
+
+
+def to_jsonld(items, site_base, bundle=None, attachment_bytes=None, context_document=None,
+              context_url=None):
+    """``graph.jsonld`` as a document (serialise it with JCS and one LF, AGSC-04-04).
+
+    ``context_document`` fixes the term names (default: the published context);
+    ``context_url`` is the ``@context`` the document names, none when it is None.
+    """
+    table = compaction_table(context_document or context_module.published())
+    by_subject = {}
+    for subject, predicate, obj in dataset(items, site_base, bundle, attachment_bytes):
+        by_subject.setdefault(subject.value, {}).setdefault(predicate.value, []).append(obj)
+    nodes = []
+    for subject in sorted(by_subject):
+        properties = by_subject[subject]
+        node = {"@id": prefixed(subject, table)}
+        types = [compact_name(value, table)
+                 for value in sorted(obj.value for obj in properties.pop(RDF_TYPE, []))]
+        if types:
+            node["@type"] = types[0] if len(types) == 1 else types
+        for predicate, objects in properties.items():
+            node[compact_name(predicate, table)] = _members(
+                objects, table["terms"].get(predicate), table)
+        nodes.append(node)
+    document = {}
+    if context_url:
+        document["@context"] = context_url
+    document["@graph"] = nodes
+    return document
+
+
+def restrict_to(whole, single):
+    """``/pages/<slug>.jsonld`` (AGSC-06-02): the nodes of the one-item document
+    ``single``, each replaced by its node in the whole graph's document."""
+    by_id = dict((node["@id"], node) for node in whole.get("@graph", []))
+    restricted = dict(single)
+    restricted["@graph"] = [by_id.get(node["@id"], node) for node in single.get("@graph", [])]
+    return restricted

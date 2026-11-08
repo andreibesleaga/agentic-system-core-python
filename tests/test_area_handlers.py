@@ -19,13 +19,12 @@ def vector(identifier):
 
 
 def _needs_build(data):
-    """A vector whose input is a whole Bundle, or which states the publisher's JSON-LD
-    files, is reported not run, never judged."""
+    """A vector whose input is a whole Bundle is reported not run, never judged."""
     given = data["input"]
     if data["area"] == "build":
         return any(k in given for k in ("bundle", "files"))
     if data["area"] == "graph":
-        return ("bundle" in given and isinstance(given.get("item"), dict)) or "graph_jsonld" in data["expected"]
+        return "bundle" in given and isinstance(given.get("item"), dict)
     return data["area"] == "discovery" and "bundle" in given and "items" not in given
 
 
@@ -42,11 +41,27 @@ def test_a_vector_that_needs_a_whole_build_is_reported_not_run():
         assert "whole Bundle" in result["detail"] or "full Bundle build" in result["detail"]
 
 
-def test_the_publishers_json_ld_files_are_reported_not_run():
+def test_the_publishers_json_ld_files_are_written_and_compared_whole():
+    # graph-0028 (AGSC-05-09): graph.jsonld and every per-item file, after JCS.
     data = vector("graph-0028")
     result = AREA_RUNNERS[data["area"]](data)
-    assert result["status"] == "not-run"
-    assert "graph.jsonld writer" in result["detail"]
+    assert result["status"] == "pass", result["detail"]
+
+
+@pytest.mark.parametrize("member", ["graph_jsonld", "per_item"])
+def test_a_changed_json_ld_expectation_fails(member):
+    data = vector("graph-0028")
+    document = data["expected"]["graph_jsonld"] if member == "graph_jsonld" \
+        else data["expected"]["per_item"]["beta"]
+    document["@graph"][1]["prefLabel"]["@value"] = "Changed"
+    result = AREA_RUNNERS[data["area"]](data)
+    assert result["status"] == "fail"
+
+
+def test_a_per_item_file_the_vector_does_not_state_fails():
+    data = vector("graph-0028")
+    del data["expected"]["per_item"]["group"]
+    assert AREA_RUNNERS[data["area"]](data)["status"] == "fail"
 
 
 @pytest.mark.parametrize("path", RUN, ids=[one.stem for one in RUN])

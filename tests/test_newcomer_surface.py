@@ -145,3 +145,18 @@ def test_the_review_patterns_catch_what_they_are_meant_to():
         assert any(pattern.search(example) for pattern in REVIEW_WORDING), example
     assert not any(pattern.search("AGSC-11-10(e, f) and RFC 9530 (a)")
                    for pattern in REVIEW_WORDING)
+
+
+def test_the_source_distribution_ships_the_security_policy_and_every_data_file():
+    # A downstream packager reads the sdist, so it carries the security policy beside the
+    # licence and the change log; the package reads every file of data/, so the sdist and
+    # the wheel carry each one.
+    manifest = (ROOT / "MANIFEST.in").read_text(encoding="utf-8").splitlines()
+    assert "include SECURITY.md" in manifest
+    assert (ROOT / "SECURITY.md").is_file()
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    shipped = re.search(r'^agentic_system_core = \[(.*)\]$', pyproject, re.M).group(1)
+    data = ROOT / "src" / "agentic_system_core" / "data"
+    for path in sorted(data.iterdir()):
+        assert '"data/*%s"' % path.suffix in shipped, path.name
+        assert "recursive-include src/agentic_system_core/data *%s" % path.suffix in manifest, path.name

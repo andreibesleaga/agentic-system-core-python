@@ -150,8 +150,8 @@ rule text of the specification alone, in the standard library:
 | `slug` | the slug grammar and uniqueness |
 | `jcs` | RFC 8785 canonical JSON with NFC before sorting |
 | `links` | the fourteen Link keys and their inverses, the cycle and cluster-tree checks, heading anchors, and inline-link resolution over a small CommonMark 0.31.2 scanner (headings and inline links only, outside code; its subset is written down in `agentic_system_core/markdown.py`) |
-| `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, and the JSON-LD context of AGSC-06-32 with the compaction it round-trips |
-| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt`, the content version and the staleness comparison; fourteen vectors of these seven areas need a whole build or the publisher's writers (`build-0015`, `build-0017`, `build-0020` to `build-0028`, `disc-0018`, `graph-0027`, `graph-0028`) and are reported as not run, by name |
+| `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, `graph.jsonld` and the per-item `/pages/<slug>.jsonld` files of AGSC-05-09, written with the published context, and the JSON-LD context of AGSC-06-32 with the compaction it round-trips |
+| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt`, the content version and the staleness comparison; thirteen vectors of these seven areas need a whole build (`build-0015`, `build-0017`, `build-0020` to `build-0028`, `disc-0018`, `graph-0027`) and are reported as not run, by name. Nine of them are still checked by this package: the test suite has the engine build each Bundle and `agentic_system_core/areas/build_tree.py` checks every expectation of `build-0020` to `build-0028` against the files written |
 | `discovery` | `/llms.txt` and `/llms-full.txt` byte for byte, reachability, the sitemap and robots facts, the link-set writer, and the discovery-document checks including the restricted-node rule of AGSC-11-20 |
 
 The other areas need a Bundle build, the engine's composition or governance
@@ -250,8 +250,9 @@ python -m venv .venv && .venv/bin/pip install -e ".[test]"
 Deterministic, fixed data, no clock, no network. The subprocesses are the Node tool
 and vector runner in the two equivalence tests, and the workflow steps that
 `tests/test_ci_workflows.py` runs on scratch input. The tests that need Node and the
-engine checkout beside this repository (`../agentic-system-core`) are skipped, with a
-message, when either is absent: a fresh clone passes with those skipped, and a pull
+engine checkout beside this repository (`../agentic-system-core`, or the checkout the
+environment variable `AGSC_ENGINE_DIR` names) are skipped, with a message, when either
+is absent: a fresh clone passes with those skipped, and a pull
 request is checked with the engine present
 ([docs/MAINTAINING.md](https://github.com/andreibesleaga/agentic-system-core-python/blob/main/docs/MAINTAINING.md)).
 

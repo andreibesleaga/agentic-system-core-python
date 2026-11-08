@@ -47,7 +47,7 @@ test = ["pytest>=7", "coverage>=7"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-agentic_system_core = ["data/*.json"]
+agentic_system_core = ["data/*.json", "data/*.jsonld"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

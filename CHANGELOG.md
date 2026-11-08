@@ -13,6 +13,12 @@ differently (SemVer's `1.1.0-rc.1` is `1.1.0rc1` here).
 ## [Unreleased]
 
 - Docs: README, `docs/MAINTAINING.md` corrected and extended (tests, CI jobs, release steps); `AGENTS.md` and `docs/ARCHITECTURE.md` added.
+- Added: `graph.to_jsonld` and `graph.restrict_to` write `graph.jsonld` and the per-item `/pages/<slug>.jsonld` files (AGSC-05-09, AGSC-06-02) from the same triples as `graph.nq`, as the engine's `src/knowledge/jsonld.js` does; `run-vectors` now runs `graph-0028` (on the shipped copies: 79 pass, 13 not run).
+- Added: `data/context.jsonld`, the published context (AGSC-06-32) as the engine's `tools/gen-ns` derives it, read by `context.published()`; the suite fails when it drifts from the engine's.
+- Added: `areas/build_tree.py` checks the files a whole build wrote against `build-0020` to `build-0028` (AGSC-00-05, AGSC-01-19, AGSC-01-20, AGSC-05-07, AGSC-06-01, AGSC-06-18, AGSC-07-19, AGSC-07-20), member for member as the engine's handler does; the suite runs it over the engine's build of each case. `run-vectors` still reports the nine as not run.
+- Changed: the source distribution ships `SECURITY.md` and `data/context.jsonld`.
+- Tests: the environment variable `AGSC_ENGINE_DIR` names the engine checkout the suite compares with; unset, it is `../agentic-system-core` as before.
+- Tests: two fitness functions: the package imports only the standard library, and only `cli.py` starts a process.
 
 ## [1.0.1] - 2026-10-21
 
