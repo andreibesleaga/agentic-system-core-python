@@ -58,8 +58,9 @@ always reaches this one.
 The checkers and the vector runner below run here. One part of the specification does
 not: the domain layer (site vocabulary, domain keys, warrants, contexts, crosswalks and
 SHACL shapes). In 1.1 only the engine checks it; its cases are reported not run with
-that reason, and Python parity for it is one of the "Ideas after 1.1" of the engine's
-roadmap.
+that reason, and Python parity for it is one of the
+["Ideas after 1.1"](https://github.com/andreibesleaga/agentic-system-core/blob/main/docs/ROADMAP.md#ideas-after-11)
+of the engine's roadmap.
 
 ### `agsc validate-wellknown <file>`
 
