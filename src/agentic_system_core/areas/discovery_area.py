@@ -3,7 +3,7 @@
 Every member of ``expected`` is checked; an unknown member is a failure.  A
 vector whose input is a whole Bundle (``bundle``) needs a site build this package
 does not carry, and is reported as not run, by name.  The cases of the web
-connection and of the 1.1 chunk facts (disc-0026 to disc-0031, disc-0033) are
+connection and of the 1.1 chunk facts (disc-0026 to disc-0031, disc-0033, disc-0035 to disc-0038) are
 handled by vector id in ``discovery_web.py``, as the engine handles them.  The
 whole-document cases disc-0020 and disc-0021 are not run (``CASES_NOT_RUN``): the
 engine builds the document with its writer of the whole link table and compares the

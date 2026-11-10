@@ -19,8 +19,11 @@ def vector(identifier):
 
 
 def _not_run(data):
-    """A vector this package reports as not run, with its reason, is never judged. A
-    handler that raises is judged: the runner reports the raise as a failure."""
+    """A vector this package reports as not run, with its reason, is never judged, and nor
+    is a withdrawn one, which the runner skips before any handler. A handler that raises
+    is judged: the runner reports the raise as a failure."""
+    if data.get("level") == "withdrawn":
+        return True
     try:
         return AREA_RUNNERS[data["area"]](copy.deepcopy(data))["status"] == "not-run"
     except Exception:

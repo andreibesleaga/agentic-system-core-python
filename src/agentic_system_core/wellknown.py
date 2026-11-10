@@ -755,6 +755,11 @@ def _check_surface(target, href, parsed, anchor, source, report, document):
         report("AGSC-E210",
                "rel#surface %s: agsc-surface-version must be absent for %s (AGSC-11-16)"
                % (href, name))
+    if name == "webmcp" and isinstance(version, list) and len(version) == 1 \
+            and re.match(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\Z", str(version[0])) is None:
+        report("AGSC-E210",
+               "rel#surface %s: the agsc-surface-version of webmcp is a date YYYY-MM-DD, not %s "
+               "(AGSC-11-16)" % (href, _compact(version[0])))
     if name == "llms-txt" and parsed.pathname != "/llms.txt" \
             and not parsed.pathname.endswith("/llms.txt"):
         report("AGSC-E210", "rel#surface llms-txt must target /llms.txt (AGSC-11-16)")

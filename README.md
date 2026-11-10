@@ -294,6 +294,12 @@ error name and not a registered code, and this package reports AGSC-E901, a
 target not found on disk. The exit code, the status and the counts are the same.
 A test pins the difference, so it fails once the engine reports a registered code.
 
+A second difference is in the agent card. A responder's `security_schemes` and
+`security_requirements` (AGSC-06-34) pass, in the engine, through the official A2A SDK's
+codec, which writes only the members A2A defines; this package has no SDK and leaves out
+only empty strings and empty lists, as the codec does, so a member A2A does not define is
+carried here and dropped there. The cases (`disc-0038`) state A2A's own members only.
+
 ## Tests
 
 ```

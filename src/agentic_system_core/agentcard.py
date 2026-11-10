@@ -5,9 +5,10 @@ written only for a node that declares the ``a2a-card`` surface and a ``responder
 surface (AGSC-06-07), every responder an A2A one (version ``a2a:<version>``,
 AGSC-11-21) and the ``a2a-card`` version a bare A2A version such as ``1.0``.  A card
 declared with no responder is a card without an endpoint, the error AGSC-E210; one
-that would not be a true A2A card is not written, with the warning AGSC-E210 saying
-that the discovery document still declares it (decision D-15).  Vectors disc-0030 and
-disc-0031.
+that would not be a true A2A card is not written, with the warning AGSC-E210, and the
+discovery document does not declare it (``served_declarations``).  A responder's
+``security_schemes`` and ``security_requirements`` become the card's ``securitySchemes``
+and ``securityRequirements``.  Vectors disc-0030, disc-0031, disc-0035 and disc-0038.
 
 The engine writes the card through the official A2A JavaScript SDK's JSON form of the
 message (``AgentCard.toJSON``, the protobuf JSON mapping: an empty string, an empty list
@@ -77,12 +78,56 @@ def card_findings(surfaces):
                         "server is not an A2A endpoint)")]
     why = _unpublishable(surfaces)
     if why is None:
-        return []
+        return _open_credential_findings(surfaces)
     target = _text(declared(surfaces, "a2a-card")[0].get("target"))
     return [finding("AGSC-E210", "agsc.config.json",
-                    "no /.well-known/agent-card.json is written: %s; the discovery document still "
-                    "declares a2a-card at %s, which this node does not serve (AGSC-06-34, "
-                    "AGSC-11-16, AGSC-11-21)" % (why, target), severity="warn")]
+                    "no /.well-known/agent-card.json is written: %s; the discovery document does "
+                    "not declare a2a-card at %s either (AGSC-06-34, AGSC-11-16, AGSC-11-21)"
+                    % (why, target), severity="warn")]
+
+
+def _open_credential_findings(surfaces):
+    """AGSC-06-34 as amended 2026-11-10: a ``credential`` responder that names no
+    ``security_schemes`` leaves a card an A2A client reads as open."""
+    return [finding("AGSC-E210", "agsc.config.json",
+                    "the responder %s is declared with access credential and its entry names no "
+                    "security_schemes, so the card carries no securitySchemes and an A2A client "
+                    "reads it as open (AGSC-06-34, AGSC-11-16)" % _text(one.get("target")),
+                    severity="warn")
+            for one in declared(surfaces, "responder")
+            if one.get("access") == "credential" and not one.get("security_schemes")]
+
+
+def served_declarations(surfaces):
+    """AGSC-11-16 as amended 2026-11-10: the declaration-only surfaces less an ``a2a-card``
+    that gets no card, so the discovery document declares no card the node does not serve
+    (the engine's ``well-known.js#servedDeclarations``)."""
+    if not declared(surfaces, "a2a-card") or eligible(surfaces):
+        return list(surfaces)
+    return [one for one in surfaces
+            if not (isinstance(one, dict) and one.get("surface") == "a2a-card")]
+
+
+def _pruned(value):
+    """The protobuf JSON mapping the SDK writes a message in: an empty string or list is
+    left out, a sub-message stays.  Members A2A does not define are not dropped here, as
+    the engine's codec drops them (README, "Differences from the engine")."""
+    if isinstance(value, dict):
+        return dict((name, _pruned(one)) for name, one in value.items() if one not in ("", []))
+    if isinstance(value, list):
+        return [_pruned(one) for one in value]
+    return value
+
+
+def _security(surfaces):
+    """AGSC-06-34 as amended 2026-11-10: the card's ``securitySchemes`` (the first entry
+    to give a name wins) and ``securityRequirements``, from the responder entries in order."""
+    schemes, requirements = {}, []
+    for one in declared(surfaces, "responder"):
+        for name, scheme in (one.get("security_schemes") or {}).items():
+            schemes.setdefault(name, _pruned(scheme))
+        requirements.extend(_pruned(entry) for entry in one.get("security_requirements") or [])
+    return schemes, requirements
 
 
 def _first_text(*values):
@@ -112,12 +157,15 @@ def card(surfaces, packs, title, bundle_version, spec_version, visibility=None,
                         "outputModes": [], "securityRequirements": [], "tags": list(SKILL_TAGS)})
               for pack in packs]
     version = spec_version if visibility == "restricted" else bundle_version
+    schemes, requirements = _security(surfaces)
     out = _present({
         "defaultInputModes": ["text/plain"], "defaultOutputModes": ["application/json"],
         "description": _first_text(description, tagline, title), "name": title,
-        "securityRequirements": [], "signatures": [], "skills": skills,
+        "securityRequirements": requirements, "signatures": [], "skills": skills,
         "supportedInterfaces": interfaces, "version": version,
     })
+    if schemes:
+        out["securitySchemes"] = schemes
     # A sub-message stays, its own empty `extensions` left out; an empty map (the
     # security schemes) is left out.  A2A 1.0 section 4.4.1: `skills` is required, so a
     # node with no pack has `skills` [].

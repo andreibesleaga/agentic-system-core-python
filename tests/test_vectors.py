@@ -25,7 +25,7 @@ def codes(result):
 def test_the_shipped_vector_copies_pass_the_file_format_check():
     result, count, empty = vectors.validate(str(VECTORS))
     assert result["status"] == "pass", result["findings"]
-    assert count == 151
+    assert count == 155
     for area in vectors_module_areas():
         assert area not in empty
     assert "lint" in empty
@@ -47,7 +47,7 @@ def test_every_vector_of_every_area_this_package_runs_passes():
     failed = [one["id"] for one in report["results"] if one["status"] == "fail"]
     assert failed == []
     assert code == 0
-    assert report["tally"]["pass"] == 111
+    assert report["tally"]["pass"] == 114
     # Thirty-four vectors are reported not run, by name, each with its reason.
     not_run = NEEDS_A_WHOLE_BUILD + NEEDS_A_WRITER_THIS_PACKAGE_LACKS + DOMAIN_LAYER
     assert report["tally"]["not_run"] == len(not_run) == 34
@@ -61,10 +61,10 @@ def test_every_vector_of_every_area_this_package_runs_passes():
     assert "export --closure" in reasons["graph-0041"]
     for identifier in ("disc-0020", "disc-0021"):
         assert "whole link table of AGSC-06-08" in reasons[identifier]
-    assert report["tally"]["withdrawn"] == 6
+    assert report["tally"]["withdrawn"] == 7
     assert report["areas_run"] == vectors_module_areas()
     assert report["areas_not_run"] == {}
-    assert "111 pass" in report["summary"]
+    assert "114 pass" in report["summary"]
     assert "34 not run by this package" in report["summary"]
 
 
@@ -77,7 +77,7 @@ def test_a_level_selects_its_area_set():
     assert report["tally"]["pass"] == 22 + 7 + 6
     assert report["tally"]["withdrawn"] == 2
     report, _ = vectors.run(str(VECTORS), level=3)
-    assert report["total"] == 151
+    assert report["total"] == 155
 
 
 @pytest.mark.skipif(not (ENGINE / "spec").is_dir(), reason="the engine checkout is not here")

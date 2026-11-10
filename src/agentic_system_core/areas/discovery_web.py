@@ -8,15 +8,17 @@ the case pins:
   (``signposting.home_links``), and the checker's warning AGSC-E202 for a home page
   whose ``Link`` header lacks the ``describedby`` link
   (``wellknown_facts.home_link_findings``);
-* disc-0027 (AGSC-06-41) — the Dataset block of the home page, as a JSON value
-  (``signposting.dataset_block``);
+* disc-0027, withdrawn, and its successor disc-0037 (AGSC-06-41) — the Dataset block of
+  the home page, as a JSON value (``signposting.dataset_block``), and the DCAT 3 catalogue
+  block of the ``discovery.dcat`` switch (``signposting.catalog_block``);
 * disc-0028, disc-0029 (AGSC-06-42) — ``/.well-known/ai-catalog.json`` and
   ``/.well-known/ard.json``, as bytes, with their findings (``catalogue``);
-* disc-0030, disc-0031 (AGSC-06-34, AGSC-06-07) — the agent card as bytes, or none and
-  why (``agentcard``);
-* disc-0033 (AGSC-06-44, AGSC-09-93 (b)) — this package's checker at the case's Level
-  over the document and the files it names, held as a build output: valid, and the
-  codes reported (``wellknown.from_build``).
+* disc-0030, disc-0031, disc-0035, disc-0038 (AGSC-06-34, AGSC-06-07, AGSC-11-16) — the
+  agent card as bytes, or none and why, and whether the discovery document declares it
+  (``agentcard``);
+* disc-0033, disc-0036 (AGSC-06-44, AGSC-11-16, AGSC-09-93 (b)) — this package's checker at
+  the case's Level over the document and the files it names, held as a build output:
+  valid, and the codes reported (``wellknown.from_build``).
 
 Every member of ``expected`` a handler does not read is a failure, so a case never
 passes on an assertion nobody made.
@@ -86,14 +88,18 @@ def _dataset(vector):
     items = []
     wanted = _by_name(vector["expected"]["cases"])
     for given in vector["input"]["cases"]:
-        config = {"bundle": given.get("bundle"), "site": given.get("site"),
-                  "visibility": given.get("visibility")}
-        block = signposting.dataset_block(config, given["instant"], set(given["files_served"]),
-                                          description=given.get("description"),
-                                          name=(given.get("site") or {}).get("title"))
+        config = {"bundle": given.get("bundle"), "discovery": given.get("discovery"),
+                  "site": given.get("site"), "visibility": given.get("visibility")}
+        facts = (config, given["instant"], set(given["files_served"]))
+        named = {"description": given.get("description"),
+                 "name": (given.get("site") or {}).get("title")}
+        block = signposting.dataset_block(*facts, **named)
         want = wanted.get(given["name"], {})
         items.append((given["name"], "block" in want and block == want["block"], shown(block)))
-        items.extend(_unknown(given["name"], want, ["block"]))
+        if "catalog" in want:
+            catalog = signposting.catalog_block(*facts, **named)
+            items.append((given["name"] + ":catalog", catalog == want["catalog"], shown(catalog)))
+        items.extend(_unknown(given["name"], want, ["block", "catalog"]))
     return items
 
 
@@ -130,12 +136,18 @@ def _card(vector):
                                     visibility=given.get("visibility"),
                                     description=given.get("description"))
         want = wanted.get(given["name"], {})
-        items.append((given["name"] + ":file", "file" in want and text == want["file"],
-                      shown(text)))
+        if "file" in want or "declares_a2a_card" not in want:
+            items.append((given["name"] + ":file", "file" in want and text == want["file"],
+                          shown(text)))
         if "findings" in want:
             ok, detail = _findings_match(want["findings"], agentcard.card_findings(surfaces))
             items.append((given["name"] + ":findings", ok, detail))
-        items.extend(_unknown(given["name"], want, ["file", "findings"]))
+        if "declares_a2a_card" in want:
+            declared = any(one.get("surface") == "a2a-card"
+                           for one in agentcard.served_declarations(surfaces))
+            items.append((given["name"] + ":declares", declared == want["declares_a2a_card"],
+                          shown(declared)))
+        items.extend(_unknown(given["name"], want, ["file", "findings", "declares_a2a_card"]))
     return items
 
 
@@ -165,6 +177,10 @@ HANDLERS = {
     "disc-0030": _card,
     "disc-0031": _card,
     "disc-0033": _chunk_surface,
+    "disc-0035": _card,
+    "disc-0036": _chunk_surface,
+    "disc-0037": _dataset,
+    "disc-0038": _card,
 }
 
 

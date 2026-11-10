@@ -96,11 +96,12 @@ def home_links(config, routes):
     return out
 
 
-def creator_of(config):
+def creator_of(config, base):
     """AGSC-06-41: the creator, a ``Person`` with a ``name`` and, where an ORCID iD is
     configured, a ``sameAs`` naming it: from ``bundle.creator`` (name, optional orcid),
     else from ``site.author`` with ``site.author_orcid`` (AGSC-01-18); None when
-    neither is configured."""
+    neither is configured.  As amended 2026-11-10 the Person is a named node: ``@id``
+    is the ORCID iD URL, else ``<site.base>#creator``."""
     creator = (config.get("bundle") or {}).get("creator")
     site = config.get("site") or {}
     if isinstance(creator, dict) and isinstance(creator.get("name"), str):
@@ -109,9 +110,10 @@ def creator_of(config):
         name, orcid = site["author"], site.get("author_orcid")
     else:
         return None
-    person = {"@type": "Person", "name": name}
-    if isinstance(orcid, str) and orcid != "":
-        person["sameAs"] = "https://orcid.org/" + orcid
+    iri = "https://orcid.org/" + orcid if isinstance(orcid, str) and orcid != "" else None
+    person = {"@id": base + "#creator" if iri is None else iri, "@type": "Person", "name": name}
+    if iri is not None:
+        person["sameAs"] = iri
     return person
 
 
@@ -122,7 +124,8 @@ def dataset_block(config, instant, served, description=None, name=None, legal=Fa
     of a restricted node are gated, so it names none and claims no free access."""
     base = (config.get("site") or {}).get("base") or ""
     block = {
-        "@context": ["https://schema.org", {"prov": PROV}], "@type": "Dataset",
+        "@context": ["https://schema.org", {"prov": PROV}], "@id": href(base, "/"),
+        "@type": "Dataset",
         "description": "" if description is None else description,
         "name": "" if name is None else name,
         "prov:generatedAtTime": {"@type": XSD_DATE_TIME, "@value": str(instant)},
@@ -131,10 +134,10 @@ def dataset_block(config, instant, served, description=None, name=None, legal=Fa
     licence = license_url(config, legal=legal)
     if licence is not None:
         block["license"] = licence
-    creator = creator_of(config)
+    creator = creator_of(config, href(base, "/"))
     if creator is not None:
         block["creator"] = creator
-        block["prov:wasAttributedTo"] = dict(creator)
+        block["prov:wasAttributedTo"] = {"@id": creator["@id"]}
     if config.get("visibility") != "restricted":
         block["isAccessibleForFree"] = True
         downloads = [{"@type": "DataDownload", "contentUrl": href(base, route),
@@ -142,3 +145,34 @@ def dataset_block(config, instant, served, description=None, name=None, legal=Fa
         if downloads:
             block["distribution"] = downloads
     return block
+
+
+#: AGSC-06-41: the namespaces of the DCAT 3 catalogue block, and the IANA media type registry.
+DCAT = "http://www.w3.org/ns/dcat#"
+DCTERMS = "http://purl.org/dc/terms/"
+IANA_MEDIA_TYPES = "https://www.iana.org/assignments/media-types/"
+
+
+def catalog_block(config, instant, served, description=None, name=None, legal=False):
+    """AGSC-06-41 as amended 2026-11-10: the DCAT 3 catalogue block a node writes beside
+    the Dataset block when ``discovery.dcat`` is true, or None (the engine's
+    ``front-page.js#catalogBlock``)."""
+    if (config.get("discovery") or {}).get("dcat") is not True:
+        return None
+    dataset = dataset_block(config, instant, served, description, name, legal)
+    described = {"@id": dataset["@id"], "@type": "dcat:Dataset",
+                 "dcterms:description": dataset["description"],
+                 "dcterms:modified": dataset["prov:generatedAtTime"],
+                 "dcterms:title": dataset["name"]}
+    if "license" in dataset:
+        described["dcterms:license"] = {"@id": dataset["license"]}
+    if "creator" in dataset:
+        described["dcterms:creator"] = {"@id": dataset["creator"]["@id"]}
+    if "distribution" in dataset:
+        described["dcat:distribution"] = [dict(
+            {"@type": "dcat:Distribution", "dcat:downloadURL": {"@id": one["contentUrl"]}},
+            **({"dcterms:format": kind} if kind == "application/jsonl"
+               else {"dcat:mediaType": {"@id": IANA_MEDIA_TYPES + kind}}))
+            for one in dataset["distribution"] for kind in [one["encodingFormat"].split(";")[0]]]
+    return {"@context": {"dcat": DCAT, "dcterms": DCTERMS}, "@id": dataset["@id"] + "#catalog",
+            "@type": "dcat:Catalog", "dcat:dataset": described, "dcterms:title": dataset["name"]}

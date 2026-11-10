@@ -2,7 +2,7 @@
 the two catalogue files and the A2A agent card (AGSC-06-34, AGSC-06-40 to AGSC-06-42,
 AGSC-06-44).
 
-The shared vectors disc-0026 to disc-0031 pin what each writer gives, and the suite
+The shared vectors disc-0026 to disc-0038 pin what each writer gives, and the suite
 runs them (``tests/test_vectors.py``); these tests state the rules the vectors do not
 reach: the A2A-only card, the domain-name rule of a ``urn:air`` identifier, the
 licence URL order and the creator taken from ``bundle.creator``.
@@ -28,8 +28,9 @@ def vector(prefix):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-@pytest.mark.parametrize("identifier", ["disc-0026", "disc-0027", "disc-0028", "disc-0029",
-                                        "disc-0030", "disc-0031", "disc-0033"])
+@pytest.mark.parametrize("identifier", ["disc-0026", "disc-0028", "disc-0029", "disc-0030",
+                                        "disc-0031", "disc-0033", "disc-0035", "disc-0036",
+                                        "disc-0037", "disc-0038"])
 def test_each_web_connection_case_passes(identifier):
     data = vector(identifier)
     result = AREA_RUNNERS["discovery"](data)
@@ -44,7 +45,7 @@ def test_a_changed_card_byte_fails_its_case():
 
 
 def test_a_case_with_no_expectation_fails():
-    data = vector("disc-0027")
+    data = vector("disc-0037")
     del data["expected"]["cases"][0]["block"]
     assert AREA_RUNNERS["discovery"](data)["status"] == "fail"
 
@@ -176,10 +177,27 @@ def test_the_first_cite_as_in_href_order_is_named():
 def test_the_creator_is_read_from_the_bundle_first():
     config = {"bundle": {"creator": {"name": "A. Person", "orcid": "0000-0002-1825-0097"}},
               "site": {"author": "Someone Else"}}
-    assert signposting.creator_of(config) == {"@type": "Person", "name": "A. Person",
-                                              "sameAs": "https://orcid.org/0000-0002-1825-0097"}
-    assert signposting.creator_of({"site": {"author": "B"}}) == {"@type": "Person", "name": "B"}
-    assert signposting.creator_of({"site": {"author": ""}}) is None
+    base = "https://a.example/"
+    assert signposting.creator_of(config, base) == {
+        "@id": "https://orcid.org/0000-0002-1825-0097", "@type": "Person", "name": "A. Person",
+        "sameAs": "https://orcid.org/0000-0002-1825-0097"}
+    assert signposting.creator_of({"site": {"author": "B"}}, base) == {
+        "@id": "https://a.example/#creator", "@type": "Person", "name": "B"}
+    assert signposting.creator_of({"site": {"author": ""}}, base) is None
+
+
+def test_the_dataset_block_names_the_bundle_and_one_person_and_the_dcat_block_is_opt_in():
+    """AGSC-06-41 as amended 2026-11-10 (disc-0037)."""
+    config = {"site": {"author": "B", "base": "https://a.example/"}}
+    block = signposting.dataset_block(config, "2026-01-01T00:00:00Z", {"/graph.nq"})
+    assert block["@id"] == "https://a.example/"
+    assert block["prov:wasAttributedTo"] == {"@id": "https://a.example/#creator"}
+    assert signposting.catalog_block(config, "2026-01-01T00:00:00Z", {"/graph.nq"}) is None
+    catalog = signposting.catalog_block(dict(config, discovery={"dcat": True}),
+                                        "2026-01-01T00:00:00Z", {"/graph.nq", "/chunks.jsonl"})
+    assert catalog["@type"] == "dcat:Catalog"
+    assert [one.get("dcterms:format") for one in catalog["dcat:dataset"]["dcat:distribution"]] \
+        == [None, "application/jsonl"]
 
 
 def test_a_dataset_block_with_nothing_served_names_no_distribution():
@@ -221,3 +239,22 @@ def test_a_validator_case_that_states_no_findings_fails():
     data = vector("disc-0026")
     del data["expected"]["validator_cases"][1]["findings"]
     assert AREA_RUNNERS["discovery"](data)["status"] == "fail"
+
+
+def test_a_card_carries_the_security_a_responder_states_and_a_credential_one_without_is_warned():
+    """AGSC-06-34 as amended 2026-11-10 (disc-0038), and the declaration of AGSC-11-16 (disc-0035)."""
+    card_entry = {"access": "none", "surface": "a2a-card", "target": "https://a.example/c",
+                  "version": "1.0"}
+    responder = {"access": "credential", "surface": "responder", "target": "https://a.example/a2a",
+                 "version": "a2a:1.0", "security_requirements": [{"schemes": {"b": {"list": []}}}],
+                 "security_schemes": {"b": {"httpAuthSecurityScheme": {"scheme": "Bearer",
+                                                                       "description": ""}}}}
+    out = agentcard.card([responder, card_entry], [], "T", "v1", "1.1.0")
+    assert out["securitySchemes"] == {"b": {"httpAuthSecurityScheme": {"scheme": "Bearer"}}}
+    assert out["securityRequirements"] == [{"schemes": {"b": {}}}]
+    bare = dict(responder)
+    del bare["security_schemes"]
+    assert [one["severity"] for one in agentcard.card_findings([bare, card_entry])] == ["warn"]
+    mcp = dict(responder, version="mcp:2026-07-28")
+    assert agentcard.served_declarations([mcp, card_entry]) == [mcp]
+    assert agentcard.served_declarations([responder, card_entry]) == [responder, card_entry]
