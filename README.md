@@ -255,14 +255,14 @@ arguments and never through a shell.
 
 ## Version
 
-Two numbers, stated apart. The package version is `1.0.1`; the specification version
-it implements is `1.0.0` (`SPEC_VERSION`). A patch of the package — a defect in a check,
+Two numbers, stated apart. The package version is `1.1.0`; the specification version
+it implements is `1.1.0` (`SPEC_VERSION`). A patch of the package — a defect in a check,
 a message — does not move the specification, and `agsc --version` prints both:
-`agsc 1.0.1 (Python package; specification 1.0.0)`. Python packages use PEP 440, which
-spells a release the same way as SemVer, so the version on PyPI is `1.0.1` too; a
+`agsc 1.1.0 (Python package; specification 1.1.0)`. Python packages use PEP 440, which
+spells a release the same way as SemVer, so the version on PyPI is `1.1.0` too; a
 release candidate is spelled differently: SemVer's `X.Y.Z-rc.N` is PEP 440's
 `X.Y.ZrcN`. A release is tested against the engine at its package tag of the same
-version (`v1.0.1`).
+version (`v1.1.0`).
 What changed in each version, and what the checker may now report, is in the
 [change log](https://github.com/andreibesleaga/agentic-system-core-python/blob/main/CHANGELOG.md).
 

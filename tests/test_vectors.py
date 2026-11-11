@@ -228,7 +228,7 @@ def _good(**overrides):
     vector = {
         "area": "jcs", "description": "A fixture.", "expected": {"output": "{}"},
         "id": "jcs-9100", "input": {"value": {}}, "level": "required",
-        "options": {"spec_version": "1.0.0"}, "rule": "AGSC-04-05",
+        "options": {"spec_version": SPEC_VERSION}, "rule": "AGSC-04-05",
     }
     vector.update(overrides)
     return vector
