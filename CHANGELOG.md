@@ -12,7 +12,7 @@ differently (SemVer's `1.1.0-rc.1` is `1.1.0rc1` here).
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-11-18
+## [1.1.0] - 2026-11-13
 
 The package of specification `1.1.0`: the specification version and the package version move together (README, "Version").
 
