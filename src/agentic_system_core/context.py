@@ -34,6 +34,8 @@ from .rdf import (ASC, DCTERMS, IRI, PREFIXES, PROV, RDF_TYPE, RDFS, SCHEMA, SKO
 #: raising the ontology version changes no byte of any ``graph.jsonld`` (graph-0043; the
 #: engine's ``CONTEXT_VERSION`` of ``src/knowledge/jsonld.js``).
 CONTEXT_VERSION = "1.0.0"
+#: The 1.0 name of ``CONTEXT_VERSION``, kept so that 1.0 code still imports it; deprecated.
+ONTOLOGY_VERSION = CONTEXT_VERSION
 CONTEXT_URL = "https://w3id.org/agentic-system-core/ns/%s/context.jsonld" % CONTEXT_VERSION
 
 _NAMESPACES = dict(PREFIXES)

@@ -38,3 +38,11 @@ def test_the_readme_lists_every_vector_not_run_and_counts_them():
         assert WORDS.index(count.group(1).lower()) == len(ids), bullet
         named += ids
     assert sorted(named) == sorted(report["vectors_not_run"])
+
+
+def test_the_change_log_counts_the_vector_copies():
+    """The change log's count of the vector files is the number of files copied."""
+    log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    said = re.search(r"seven areas \((\d+) files;", log)
+    assert said is not None
+    assert int(said.group(1)) == sum(1 for one in pathlib.Path(VECTORS).rglob("*") if one.is_file())

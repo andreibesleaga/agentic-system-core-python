@@ -8,6 +8,7 @@ the engine, when it is beside this repository with Node: the file is the bytes t
 command derives. No network.
 """
 
+import json
 import subprocess
 
 import pytest
@@ -74,3 +75,14 @@ def test_the_shipped_table_is_the_bytes_the_engine_derives():
     done = subprocess.run(["node", "-e", DERIVE, str(ENGINE)], capture_output=True)
     assert done.returncode == 0, done.stderr[-2000:]
     assert relations.data_bytes() == done.stdout
+
+
+@pytest.mark.skipif(not engine_available(),
+                    reason="the link-shaped names check needs Node and the engine checkout")
+def test_the_link_shaped_names_are_the_engines():
+    """AGSC-03-03: the names that are AGSC-E304, as the engine's relation table lists them."""
+    script = ("const r = require(require('node:path').resolve(process.argv[1], 'src/knowledge/relations.js'));"
+              " process.stdout.write(JSON.stringify([...r.LINK_SHAPED_UNKNOWN]));")
+    done = subprocess.run(["node", "-e", script, str(ENGINE)], capture_output=True)
+    assert done.returncode == 0, done.stderr[-2000:]
+    assert sorted(links.LINK_SHAPED_UNKNOWN) == sorted(json.loads(done.stdout))

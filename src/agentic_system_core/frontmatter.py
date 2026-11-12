@@ -167,6 +167,9 @@ def check(data, lines=None, slug=None):
             continue
         elif key in links_module.AUTHORED_INVERSE_FORBIDDEN:
             c.add("AGSC-E306", "%s is a computed inverse and is never authored" % key, key)
+        elif key in links_module.LINK_SHAPED_UNKNOWN:
+            c.add("AGSC-E304", "%s is not one of the fourteen Link keys and is preserved "
+                  "(AGSC-03-03)" % key, key, severity="warn")
         else:
             c.add("AGSC-E207", "unknown key %s is preserved" % key, key, severity="warn")
 

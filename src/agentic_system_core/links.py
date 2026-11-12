@@ -36,6 +36,13 @@ from .relations import SYMMETRIC as SYMMETRIC
 
 #: AGSC-03-04: the inverse names that may never be authored.
 AUTHORED_INVERSE_FORBIDDEN = COMPUTED_KEYS
+#: AGSC-03-03: the link-shaped names outside the fourteen, each the warning ``AGSC-E304``
+#: (every other unknown key is ``AGSC-E207``, so one key never carries two codes): the
+#: reserved ``peer-ref``, the untyped ``mentions`` and the foreign names of AGSC-03-19/03-20.
+#: The engine's ``LINK_SHAPED_UNKNOWN`` (``src/knowledge/relations.js``); a test compares them.
+LINK_SHAPED_UNKNOWN = ("peer-ref", "mentions", "refines", "alternative-to", "conflicts-with",
+                       "composed-of", "mitigates", "recommends", "blockedBy", "decidedBy",
+                       "tests", "traces-to")
 #: AGSC-03-24: the combinations a pair (A, B) must not hold. A authors the first key;
 #: the second may be authored by either side, as AGSC-03-05 runs ``excludes`` and
 #: ``contradicts`` both ways.

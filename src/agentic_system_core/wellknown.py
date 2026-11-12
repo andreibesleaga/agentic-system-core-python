@@ -49,6 +49,7 @@ Standard library only.
 """
 
 import base64
+import datetime
 import hashlib
 import json
 import os
@@ -376,6 +377,17 @@ def _check_headers(source, anchor, restricted, level, report):
                 no_cache=is_document or url.pathname in NO_CACHE,
                 versioned=VERSIONED.match(url.pathname) is not None):
             report(code, "%s: %s" % (final, message), severity=severity)
+
+
+def _is_date(text):
+    """AGSC-11-16: a ``YYYY-MM-DD`` value that names a day of the calendar (not ``2026-13-45``)."""
+    if re.match(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\Z", text) is None:
+        return False
+    try:
+        datetime.date.fromisoformat(text)
+    except ValueError:
+        return False
+    return True
 
 
 def check(source, level, findings, dev=False, spec_version=SPEC_VERSION):
@@ -756,7 +768,7 @@ def _check_surface(target, href, parsed, anchor, source, report, document):
                "rel#surface %s: agsc-surface-version must be absent for %s (AGSC-11-16)"
                % (href, name))
     if name == "webmcp" and isinstance(version, list) and len(version) == 1 \
-            and re.match(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\Z", str(version[0])) is None:
+            and not _is_date(str(version[0])):
         report("AGSC-E210",
                "rel#surface %s: the agsc-surface-version of webmcp is a date YYYY-MM-DD, not %s "
                "(AGSC-11-16)" % (href, _compact(version[0])))

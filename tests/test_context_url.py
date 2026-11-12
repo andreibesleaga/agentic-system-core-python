@@ -51,3 +51,9 @@ def test_a_compacted_document_names_that_address():
     built = context.build([{"kind": "object", "term": "uses"}], ["skos:prefLabel"])
     document = context.compact(triples, built)
     assert document["@context"] == context.CONTEXT_URL
+
+
+def test_the_1_0_name_of_the_context_version_still_imports():
+    """A MINOR removes nothing (AGSC-00-14): 1.0's ``ONTOLOGY_VERSION`` stays, the same value."""
+    from agentic_system_core.context import CONTEXT_VERSION, ONTOLOGY_VERSION
+    assert ONTOLOGY_VERSION == CONTEXT_VERSION == "1.0.0"

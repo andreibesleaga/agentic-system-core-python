@@ -147,6 +147,13 @@ def test_key_names_vendor_keys_unknown_keys_and_inverses():
     assert found == [("AGSC-E204", "Bad"), ("AGSC-E207", "odd"), ("AGSC-E306", "used-by")]
 
 
+def test_a_link_shaped_key_is_the_one_warning_e304_never_e207():
+    """AGSC-03-03: peer-ref, mentions and the foreign names are AGSC-E304; one key, one code."""
+    found = frontmatter.check(with_(**{"peer-ref": ["b"], "mentions": ["b"], "odd": "1"}))
+    assert sorted((one["code"], one.get("key"), one["severity"]) for one in found) == [
+        ("AGSC-E207", "odd", "warn"), ("AGSC-E304", "mentions", "warn"), ("AGSC-E304", "peer-ref", "warn")]
+
+
 def test_common_key_patterns():
     found = codes_of(with_(description="short", status="gone", release="Bad Slug", id="x",
                            iri="http://x/", spec_version="1", lang="e", date="2026-1-1",
