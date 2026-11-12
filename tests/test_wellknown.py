@@ -733,7 +733,8 @@ def test_a_public_level0_node_is_not_asked_generated_at_or_spec_version():
 
 @pytest.mark.parametrize("version,expected", [
     ("2026-10-27", []), ("2028-02-29", []), ("2026-13-45", ["AGSC-E210"]),
-    ("2026-02-30", ["AGSC-E210"]), ("2027-02-29", ["AGSC-E210"])])
+    ("2026-02-30", ["AGSC-E210"]), ("2027-02-29", ["AGSC-E210"]),
+    ("0000-02-29", [])])
 def test_a_webmcp_version_must_be_a_real_date(tmp_path, version, expected):
     # AGSC-11-16: "a date of the form YYYY-MM-DD"; 2026-13-45 has the form and names no day.
     with open(case("good"), encoding="utf-8") as handle:

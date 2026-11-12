@@ -49,7 +49,7 @@ Standard library only.
 """
 
 import base64
-import datetime
+import calendar
 import hashlib
 import json
 import os
@@ -383,11 +383,9 @@ def _is_date(text):
     """AGSC-11-16: a ``YYYY-MM-DD`` value that names a day of the calendar (not ``2026-13-45``)."""
     if re.match(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\Z", text) is None:
         return False
-    try:
-        datetime.date.fromisoformat(text)
-    except ValueError:
-        return False
-    return True
+    # calendar, not datetime: the engine accepts year 0000 (a leap year), and datetime has no year 0.
+    year, month, day = (int(part) for part in text.split("-"))
+    return 1 <= month <= 12 and 1 <= day <= calendar.monthrange(year, month)[1]
 
 
 def check(source, level, findings, dev=False, spec_version=SPEC_VERSION):
