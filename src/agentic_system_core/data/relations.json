@@ -9,7 +9,8 @@
       "transitive": false,
       "selfLink": "warning",
       "targets": {
-        "any": true
+        "any": true,
+        "noCluster": true
       },
       "meaning": "The two items are connected in meaning, and neither depends on the other."
     },

@@ -119,8 +119,11 @@ def matches_expected(cell, owner, target):
     """AGSC-03-25: does ``target`` fit the Expected target kinds cell of a key ``owner`` authors?
 
     A cell reading ``any`` never fails, except that the narrower cell of ``derived-from``
-    binds when the owner is a lesson.
+    binds when the owner is a lesson, and the cell of ``related`` refuses a cluster at either
+    end, which AGSC-05-20 keeps out of ``skos:related``.
     """
+    if cell.get("noCluster") and "cluster" in (owner.get("type"), target.get("type")):
+        return False
     if cell.get("any"):
         lesson = cell.get("lessonTarget")
         return lesson is None or owner.get("type") != "lesson" or _is_kind(lesson, target)

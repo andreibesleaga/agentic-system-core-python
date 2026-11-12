@@ -4,7 +4,7 @@
 relations a pair cannot both hold), AGSC-E315 (a target of a kind the key does not
 expect) and AGSC-E316 (a ``supersedes`` target that is still stable), each carried by
 the item that authors the key. The engine's ``src/knowledge/links.js`` is the reference;
-``links-0010`` to ``links-0017`` are the vectors. Fixed data, no network.
+``links-0010`` to ``links-0017`` and ``links-0020`` are the vectors. Fixed data, no network.
 """
 
 from agentic_system_core import links
@@ -54,6 +54,14 @@ def test_each_expected_target_cell_admits_its_kinds():
              concept("v1", verifies=["pr"]), {"slug": "pr", "type": "procedure"},
              concept("u1", uses=["pr"], covers=["pr"])]
     assert codes(items) == []
+
+
+def test_a_related_that_joins_a_cluster_warns_at_either_end():
+    group = {"slug": "c1", "type": "cluster"}
+    assert codes([concept("a1", related=["c1"]), group]) == [("a1", "AGSC-E315")]
+    assert codes([dict(group, related=["a1"]), concept("a1")]) == [("c1", "AGSC-E315")]
+    # Near misses: another key whose cell reads any stays silent at a cluster.
+    assert codes([concept("a1", uses=["c1"], covers=["c1"]), group]) == []
 
 
 def test_superseding_a_stable_item_warns_and_a_replaced_one_does_not():
