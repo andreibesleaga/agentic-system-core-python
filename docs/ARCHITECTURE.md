@@ -38,9 +38,12 @@ flowchart TD
     cli --> vectors["vectors.py<br/>vector checker and runner"]
     cli -->|"passes fetch in"| net
     cli -->|"subprocess, no shell"| node["Node engine agsc"]
-    wellknown --> net["net.py<br/>guarded HTTP reader"]
-    vectors --> areas["areas/<br/>one handler per area"]
+    wellknown --> net["net.py<br/>guarded HTTP reader,<br/>request budget"]
+    wellknown --> facts["wellknown_facts.py<br/>chunk, ledger, card, home-link checks"]
+    facts --> net
+    vectors --> areas["areas/<br/>one handler per area,<br/>each behind the expected-reads guard"]
     vectors --> index[("data/spec-index.json")]
+    context --> published[("data/context.jsonld")]
 
     areas --> frontmatter["frontmatter.py"]
     areas --> slug["slug.py"]
@@ -52,18 +55,55 @@ flowchart TD
     areas --> wellknown
     areas --> rdf
 
+    areas --> derive["derive.py<br/>readings"]
+    areas --> questions["questions.py<br/>ten questions"]
+    areas --> skos["skos.py<br/>SKOS view"]
+    areas --> signposting["signposting.py<br/>Link of /, Dataset block"]
+    areas --> catalogue["catalogue.py<br/>ard.json, ai-catalog.json"]
+    areas --> agentcard["agentcard.py<br/>A2A agent card"]
+    catalogue --> signposting
+
     frontmatter --> yamlsubset["yamlsubset.py"]
     frontmatter --> slug
     frontmatter --> links
     links --> markdown["markdown.py"]
+    links --> relations["relations.py<br/>relation table"]
+    relations --> table[("data/relations.json")]
     graphmod --> links
+    graphmod --> relations
     graphmod --> rdf["rdf.py"]
+    graphmod --> context
     context --> rdf
+    derive --> relations
+    questions --> links
+    questions --> relations
+    skos --> rdf
     discovery --> graphmod
     discovery --> links
 
     reader["reader.py<br/>reading API"]
 ```
+
+The relation table of AGSC-03-01 has one source in the package: `relations.py` reads
+`data/relations.json`, the engine's table written out by Node, and every module that
+needs a key, an inverse or a property takes it from there (`tests/test_architecture.py`
+fails when a module spells out a computed inverse name).
+
+`areas/build_tree.py` checks the files a whole build wrote against the `build` cases
+that need one (`build-0020` to `build-0028`, less `build-0024`, withdrawn in 1.1). It
+builds nothing: the caller passes a function that runs a build, and the test suite
+passes one that runs the engine's.
+
+Every area handler runs behind `areas/_expected_reads.py`, the twin of the engine's
+guard: a pass that left a member of a case's `expected` unread is turned into a fail,
+so a vector cannot pass on an expectation no code compared.
+
+`net.py` is the only module that opens a connection (`tests/test_architecture.py`
+fails otherwise): every request of a run passes its address classification, its caps,
+its deadline and one request budget for the run, redirects included (AGSC-11-10(c)).
+`signposting.py`, `catalogue.py` and `agentcard.py` are pure writers of data: they give
+what the home page, the two catalogue files and the agent card carry, so the vectors
+that pin those bytes run here, though this package writes no site.
 
 `reader.py` stands apart: no other module imports it, and it imports only the package
 constants, `urls.py` and `jcs.py`. It never opens a connection; a fetcher is passed in by
@@ -86,6 +126,12 @@ sequenceDiagram
         N-->>W: final URL, headers, bytes
     end
     W->>W: check(source, level, findings)
+    opt the document links chunks, a ledger or an agent card
+        W->>W: wellknown_facts: recompute count and set, ledger length, card served
+    end
+    opt target is a URL
+        W->>N: fetch(/): the Link header of the home page (describedby, AGSC-06-40)
+    end
     W->>D: envelope(findings, verb)
     D-->>W: envelope
     W-->>C: envelope, number of files read

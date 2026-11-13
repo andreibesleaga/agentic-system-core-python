@@ -291,8 +291,9 @@ def test_a_profile_link_header_on_the_wrong_media_type_is_still_reported():
 
     result, _ = wellknown.validate("https://node.example/.well-known/knowledge-linkset",
                                    allow_network=True, fetcher=fetcher)
-    assert codes(result) == ["AGSC-E201"]
-    assert "is not application/linkset+json" in result["findings"][0]["message"]
+    errors = [one for one in result["findings"] if one["severity"] == "error"]
+    assert [one["code"] for one in errors] == ["AGSC-E201"]
+    assert "is not application/linkset+json" in errors[0]["message"]
 
 
 PROFILE_LINK = ('<https://w3id.org/agentic-system-core/profile/agentic-knowledge>; '
@@ -414,6 +415,9 @@ def test_the_origin_judged_is_the_one_finally_read_after_redirects():
 
 GOOD_URL = "https://node.example/.well-known/knowledge-linkset"
 NO_CACHE_PATHS = ("/.well-known/knowledge-linkset", "/now.md", "/ledger.jsonl")
+#: The home page, whose Link header the checker reads (AGSC-06-25, AGSC-06-40).
+HOME_URL = "https://node.example/"
+DESCRIBEDBY = '</.well-known/knowledge-linkset>; rel="describedby"; type="application/linkset+json"'
 
 
 def _good_served():
@@ -424,6 +428,7 @@ def _good_served():
         "https://node.example/llms.txt": (WELLKNOWN / "good" / "llms.txt").read_bytes(),
         "https://node.example/graph.jsonld": (WELLKNOWN / "good" / "graph.jsonld").read_bytes(),
         "https://node.example/ledger.jsonl": (WELLKNOWN / "good" / "ledger.jsonl").read_bytes(),
+        HOME_URL: b"<!doctype html>\n",
     }
 
 
@@ -439,6 +444,8 @@ def _full_headers(href):
                                    'agentic-system-core/profile/agentic-knowledge"')
     if href.endswith(NO_CACHE_PATHS):
         headers["cache-control"] = "no-cache"
+    if href == HOME_URL:
+        headers["link"] = DESCRIBEDBY
     return headers
 
 
@@ -558,7 +565,8 @@ def test_a_restricted_node_is_asked_the_cross_origin_pair_on_its_document_alone(
     }
     served = {GOOD_URL: json.dumps({"linkset": [context]}, separators=(",", ":"),
                                    sort_keys=True).encode() + b"\n",
-              "https://node.example/graph.jsonld": graph, "https://node.example/llms.txt": llms}
+              "https://node.example/graph.jsonld": graph, "https://node.example/llms.txt": llms,
+              HOME_URL: b"<!doctype html>\n"}
 
     def gated(href, headers):
         if href != GOOD_URL:
@@ -721,3 +729,24 @@ def test_a_public_level0_node_is_not_asked_generated_at_or_spec_version():
     assert "agsc-generated-at" not in document["linkset"][0]["describedby"][0]
     findings, _ = _access_findings(document)
     assert findings == []
+
+
+@pytest.mark.parametrize("version,expected", [
+    ("2026-10-27", []), ("2028-02-29", []), ("2026-13-45", ["AGSC-E210"]),
+    ("2026-02-30", ["AGSC-E210"]), ("2027-02-29", ["AGSC-E210"]),
+    ("0000-02-29", [])])
+def test_a_webmcp_version_must_be_a_real_date(tmp_path, version, expected):
+    # AGSC-11-16: "a date of the form YYYY-MM-DD"; 2026-13-45 has the form and names no day.
+    with open(case("good"), encoding="utf-8") as handle:
+        doc = json.load(handle)
+    context = doc["linkset"][0]
+    origin = context["anchor"]
+    context[REL_SURFACE] = [{"agsc-access": ["consent"], "agsc-surface": ["webmcp"],
+                             "agsc-surface-version": [version], "href": origin + "compose/"}]
+    path = tmp_path / "knowledge-linkset"
+    path.write_text(json.dumps(doc) + "\n", encoding="utf-8")
+    result, _ = wellknown.validate(str(path))
+    assert sorted(one["code"] for one in result["findings"] if "webmcp" in one["message"]) == expected
+
+
+REL_SURFACE = "https://w3id.org/agentic-system-core/rel#surface"

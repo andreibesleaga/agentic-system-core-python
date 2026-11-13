@@ -32,7 +32,7 @@ import re
 import unicodedata
 
 from . import SPEC_VERSION, __version__
-from .areas import AREA_RUNNERS, NOT_RUN_REASONS
+from .areas import AREA_RUNNERS, CASES_NOT_RUN, NOT_RUN_REASONS
 from .diagnostics import EXIT_FAIL, EXIT_PASS, envelope, finding
 from .jcs import canonicalize, nfc, utf16_key
 
@@ -61,18 +61,28 @@ LEVEL_AREAS = {
     3: AREAS,
 }
 
-#: AGSC-10-15 (amended for 1.0.0): the cases of a Level's areas that exercise a higher
+#: AGSC-10-15 (amended for 1.1.0): the cases of a Level's areas that exercise a higher
 #: Level's behaviour, each with the Level it belongs to; a claim at a lower Level neither
-#: runs them nor fails for them. The engine and the specification carry the same table.
+#: runs them nor fails for them. The engine and the specification carry the same table
+#: (spec/10, the AGSC-10-15 table, read by the suite), here grouped by Level.
 HIGHER_LEVEL_CASES = {
     "bundle-0001": 1, "bundle-0006": 1, "bundle-0007": 1, "bundle-0009": 1, "bundle-0010": 1,
-    "disc-0005": 1, "disc-0019": 1,
+    "disc-0005": 1, "disc-0019": 1, "bundle-0012": 1, "bundle-0013": 1, "bundle-0014": 1,
+    "bundle-0015": 1, "bundle-0016": 1, "bundle-0017": 1, "bundle-0020": 1, "bundle-0021": 1,
+    "fm-0021": 1, "fm-0022": 1, "fm-0023": 1, "fm-0024": 1, "fm-0025": 1, "disc-0023": 1,
+    "fm-0026": 1, "fm-0027": 1,
     "bundle-0008": 2, "disc-0009": 2, "disc-0012": 2, "disc-0015": 2, "disc-0016": 2,
     "disc-0017": 2, "disc-0018": 2, "disc-0020": 2, "disc-0021": 2, "lint-0026": 2,
-    "bundle-0003": 3, "bundle-0004": 3, "bundle-0005": 3,
-    "lint-0001": 3, "lint-0002": 3, "lint-0003": 3, "lint-0028": 3, "lint-0029": 3,
-    "lint-0032": 3, "lint-0033": 3,
-    "adopt-0007": 3, "adopt-0008": 3, "adopt-0009": 3,
+    "bundle-0011": 2, "disc-0026": 2, "disc-0027": 2, "disc-0028": 2, "disc-0029": 2,
+    "disc-0030": 2, "disc-0031": 2, "disc-0032": 2, "disc-0033": 2, "disc-0035": 2,
+    "disc-0036": 2, "disc-0037": 2, "disc-0038": 2,
+    "bundle-0003": 3, "bundle-0004": 3, "bundle-0005": 3, "lint-0001": 3, "lint-0002": 3,
+    "lint-0003": 3, "lint-0028": 3, "lint-0029": 3, "lint-0032": 3, "lint-0033": 3,
+    "adopt-0007": 3, "adopt-0008": 3, "adopt-0009": 3, "bundle-0018": 3, "bundle-0019": 3,
+    "imp-0006": 3, "imp-0007": 3, "imp-0008": 3, "bnd-0046": 3, "bnd-0047": 3, "bnd-0048": 3,
+    "bnd-0050": 3, "lint-0046": 3, "lint-0047": 3, "lint-0048": 3, "lint-0049": 3,
+    "lint-0050": 3, "lint-0057": 3, "lint-0058": 3, "lint-0059": 3, "lint-0063": 3,
+    "lint-0065": 3,
 }
 
 _ID = re.compile(r"^[a-z]+-\d{4}$")
@@ -127,6 +137,57 @@ def _walk(directory):
     return sorted(out)
 
 
+#: AGSC-09-04: the path of a vector inside its tree, ``<area>/<prefix>-<nnnn>[-words].json``.
+_VECTOR_NAME = re.compile(r"^[a-z]+-\d{4}(-[A-Za-z0-9-]+)?\.json$")
+
+
+def _is_vector_path(absolute, directory):
+    parts = os.path.relpath(absolute, directory).split(os.sep)
+    return len(parts) == 2 and parts[0] in AREAS and _VECTOR_NAME.match(parts[1]) is not None
+
+
+def _files_to_judge(directory, label):
+    """The files of a vector tree, and the AGSC-E901 finding when there is none.
+
+    As the engine's ``validate-vectors`` reads AGSC-09-90: a missing folder and a folder
+    with no JSON file carry nothing to validate; a folder where not one JSON file sits at
+    a vector's path (one area folder, or a published site's ``/skills/index.json``) is
+    not a vector tree, and none of its files is judged.  Inside a vector tree every JSON
+    file is judged, so a misnamed vector is still reported.
+    """
+    if not os.path.isdir(directory):
+        return [], [finding("AGSC-E901", label, "no such directory: %s: there is nothing "
+                                               "to validate (AGSC-09-90)" % directory)]
+    files = _walk(directory)
+    if not files:
+        return [], [finding("AGSC-E901", label, "no vector file under %s: there is nothing "
+                                               "to validate (AGSC-09-90)" % directory)]
+    if not any(_is_vector_path(one, directory) for one in files):
+        return [], [finding(
+            "AGSC-E901", label,
+            "%s is not a vector directory: none of its %d JSON file(s) is an "
+            "<area>/<prefix>-<nnnn>.json vector, so none was judged (AGSC-09-04, AGSC-09-90)"
+            % (directory, len(files)))]
+    return files, []
+
+
+def _supersession_findings(links, seen):
+    """AGSC-09-04: a ``superseded_by`` link sits on a withdrawn vector and names a
+    vector of the same set; checked once every identifier is known."""
+    out = []
+    for name, level, target in links:
+        if level != "withdrawn":
+            out.append(finding("AGSC-E201", name,
+                               "only a withdrawn vector may carry `superseded_by` (AGSC-09-04)"))
+        if not isinstance(target, str) or _ID.match(target) is None:
+            out.append(finding("AGSC-E204", name, 'superseded_by "%s" is not a vector id '
+                                                  "(AGSC-09-04)" % (target,)))
+        elif target not in seen:
+            out.append(finding("AGSC-E201", name, 'superseded_by "%s" names no vector of '
+                                                  "this set (AGSC-09-04)" % target))
+    return out
+
+
 def _relative(path, root):
     return os.path.relpath(path, root).replace(os.sep, "/")
 
@@ -176,12 +237,7 @@ def validate(directory, spec=None, root=None):
             else os.path.dirname(directory)
     root = os.path.abspath(root)
 
-    findings = []
-    files = _walk(directory)
-    if not files:
-        findings.append(finding(
-            "AGSC-E901", _relative(directory, root),
-            "no vector file under %s: there is nothing to validate (AGSC-09-90)" % directory))
+    files, findings = _files_to_judge(directory, _relative(directory, root))
     if not rule_ids:
         findings.append(finding(
             "AGSC-E901", "spec/",
@@ -189,6 +245,7 @@ def validate(directory, spec=None, root=None):
 
     seen = {}
     present = set()
+    links = []
     for absolute in files:
         name = _relative(absolute, root)
         with open(absolute, "rb") as handle:
@@ -253,6 +310,8 @@ def validate(directory, spec=None, root=None):
                 findings.append(finding(
                     "AGSC-E201", name,
                     'rule "%s" is defined nowhere in spec/ (AGSC-09-05)' % vector["rule"]))
+        if "superseded_by" in vector:
+            links.append((name, vector.get("level"), vector["superseded_by"]))
         if vector.get("level") == "withdrawn":
             if not isinstance(vector.get("reason"), str) or vector["reason"] == "":
                 findings.append(finding(
@@ -284,6 +343,7 @@ def validate(directory, spec=None, root=None):
                     "AGSC-E203", name,
                     "error code %s is not registered in spec/09 section 9.4 (AGSC-09-15)" % code))
 
+    findings.extend(_supersession_findings(links, seen))
     empty = [area for area in AREAS if area not in present]
     return envelope(findings, VALIDATE_VERB, spec_version=declared), len(files), empty
 
@@ -314,6 +374,10 @@ def load_vectors(directory):
     return sorted(out, key=lambda one: str(one.get("id")))
 
 
+def _area_reason(area):
+    return NOT_RUN_REASONS.get(area, "area %s is not implemented by this package" % area)
+
+
 def run_one(vector, pending, reason, surfaces):
     """Classify and, where this package implements the area, execute one vector."""
     if vector.get("level") == "withdrawn":
@@ -326,10 +390,8 @@ def run_one(vector, pending, reason, surfaces):
         return {"status": "pass", "detail": "skipped as passed: surface not declared (AGSC-09-04)"}
     runner = AREA_RUNNERS.get(vector.get("area"))
     if runner is None:
-        return {"status": "not-run",
-                "detail": NOT_RUN_REASONS.get(
-                    vector.get("area"),
-                    "area %s is not implemented by this package" % vector.get("area"))}
+        return {"status": "not-run", "detail": CASES_NOT_RUN.get(vector.get("id"))
+                or _area_reason(vector.get("area"))}
     try:
         return runner(vector)
     except Exception as error:  # the handler itself is a fault, never a silent pass
@@ -364,7 +426,7 @@ def run(directory, level=None, pending_path=None, surfaces=("mcp", "webmcp")):
             if vector.get("area") in AREA_RUNNERS:
                 not_run_vectors[vector.get("id")] = outcome["detail"]
             else:
-                not_run_areas[vector.get("area")] = outcome["detail"]
+                not_run_areas[vector.get("area")] = _area_reason(vector.get("area"))
         else:
             tally["fail"] += 1
         results.append({

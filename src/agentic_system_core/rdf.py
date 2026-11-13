@@ -206,45 +206,50 @@ def is_pn_local(text):
     return text[-1] != "."
 
 
-def turtle_iri(value):
+def turtle_iri(value, prefixes=PREFIXES):
     """A prefixed name where AGSC-05-10(d) allows one, else ``<IRI>``."""
-    for prefix, namespace in PREFIXES:
+    for prefix, namespace in prefixes:
         if value.startswith(namespace) and is_pn_local(value[len(namespace):]):
             return "%s:%s" % (prefix, value[len(namespace):])
     return _iri_text(value)
 
 
-def turtle_term(term):
+def turtle_term(term, prefixes=PREFIXES):
     if isinstance(term, IRI):
-        return turtle_iri(term.value)
+        return turtle_iri(term.value, prefixes)
     text = '"%s"' % escape(term.value)
     if term.lang is not None:
         return "%s@%s" % (text, term.lang)
     if term.datatype is None:
         return text
-    return "%s^^%s" % (text, turtle_iri(term.datatype))
+    return "%s^^%s" % (text, turtle_iri(term.datatype, prefixes))
 
 
-def prefix_block():
-    return "".join("@prefix %s: <%s> .\n" % pair for pair in PREFIXES)
+def prefix_block(prefixes=PREFIXES):
+    return "".join("@prefix %s: <%s> .\n" % pair for pair in prefixes)
 
 
-def turtle(triples):
-    """The whole of ``graph.ttl`` under the AGSC-05-10 profile."""
+def turtle(triples, prefixes=PREFIXES):
+    """The whole of ``graph.ttl`` under the AGSC-05-10 profile.
+
+    ``prefixes`` is the prefix block, in order: the constant block of AGSC-05-10(a) for
+    ``graph.ttl``, the two lines of AGSC-05-36 for the SKOS view. The rest of the
+    profile, (c) to (e), is the same for every file.
+    """
     by_subject = {}
     for subject, predicate, obj in triples:
         _check_subject(subject)
         by_subject.setdefault(subject.value, {}).setdefault(predicate.value, set()).add(
-            turtle_term(obj))
+            turtle_term(obj, prefixes))
     blocks = []
     for subject in sorted(by_subject):
         clauses = []
         predicates = by_subject[subject]
         for predicate in sorted(predicates):
-            verb = "a" if predicate == RDF_TYPE else turtle_iri(predicate)
+            verb = "a" if predicate == RDF_TYPE else turtle_iri(predicate, prefixes)
             clauses.append("%s %s" % (verb, " , ".join(sorted(predicates[predicate]))))
-        blocks.append("%s %s .\n" % (turtle_iri(subject), " ;\n    ".join(clauses)))
-    return prefix_block() + "".join("\n" + block for block in blocks)
+        blocks.append("%s %s .\n" % (turtle_iri(subject, prefixes), " ;\n    ".join(clauses)))
+    return prefix_block(prefixes) + "".join("\n" + block for block in blocks)
 
 
 _BLANK_TOKEN = re.compile(r"_:|\[|\(")

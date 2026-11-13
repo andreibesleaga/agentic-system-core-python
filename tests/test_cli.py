@@ -21,7 +21,7 @@ def run(argv):
 def test_version():
     code, out, _ = run(["--version"])
     assert code == 0
-    assert out.strip() == "agsc 1.0.1 (Python package; specification 1.0.0)"
+    assert out.strip() == "agsc 1.1.0 (Python package; specification 1.1.0)"
 
 
 def test_release_metadata():
@@ -31,8 +31,8 @@ def test_release_metadata():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     with open(os.path.join(root, "pyproject.toml"), encoding="utf-8") as handle:
         pyproject = handle.read()
-    assert (pkg.__version__, pkg.SEMVER_VERSION, pkg.SPEC_VERSION) == ("1.0.1", "1.0.1", "1.0.0")
-    assert '\nversion = "1.0.1"\n' in pyproject
+    assert (pkg.__version__, pkg.SEMVER_VERSION, pkg.SPEC_VERSION) == ("1.1.0", "1.1.0", "1.1.0")
+    assert '\nversion = "1.1.0"\n' in pyproject
     assert '"Development Status :: 5 - Production/Stable",' in pyproject
     assert "Development Status :: 4" not in pyproject
 
@@ -91,7 +91,7 @@ def test_validate_wellknown_peer_and_dev_flags():
 def test_validate_vectors():
     code, out, _ = run(["validate-vectors", str(VECTORS)])
     assert code == 0
-    assert "94 input file(s) read" in out
+    assert "156 input file(s) read" in out
     code, out, _ = run(["validate-vectors", str(VECTORS), "--json"])
     assert code == 0
     assert parse_ijson(out)["verb"] == "validate-vectors"
@@ -101,10 +101,16 @@ def test_validate_vectors():
 
 def test_validate_vectors_usage_faults():
     assert run(["validate-vectors"])[0] == 2
-    assert run(["validate-vectors", "/no/such/dir"])[0] == 2
     assert run(["validate-vectors", "--bogus"])[0] == 2
     assert run(["validate-vectors", "--spec"])[0] == 2
     assert run(["validate-vectors", "--help"])[0] == 0
+
+
+def test_validate_vectors_reports_a_missing_folder_in_the_envelope():
+    # AGSC-09-90: exit 1 with AGSC-E901, as the engine's tool does; exit 2 is for usage.
+    code, out, err = run(["validate-vectors", "/no/such/dir", "--json"])
+    assert code == 1
+    assert [one["code"] for one in parse_ijson(out)["findings"]] == ["AGSC-E901"]
 
 
 def test_validate_vectors_with_a_live_spec_directory(tmp_path):
@@ -128,7 +134,7 @@ def test_validate_vectors_root_option(tmp_path):
 def test_run_vectors():
     code, out, _ = run(["run-vectors", str(VECTORS)])
     assert code == 0
-    assert "78 pass" in out
+    assert "115 pass" in out
     assert "not run by this package: build-0015" in out
     code, out, _ = run(["run-vectors", str(VECTORS), "--json"])
     assert parse_ijson(out)["areas_run"] == [
@@ -311,7 +317,7 @@ def test_allow_network_is_accepted_with_a_file_argument():
 def test_validate_vectors_prints_findings_in_plain_form(tmp_path):
     area = tmp_path / "jcs"
     area.mkdir()
-    (area / "a.json").write_bytes(b'{"area":"jcs"}\n')
+    (area / "jcs-9100.json").write_bytes(b'{"area":"jcs"}\n')
     code, out, err = run(["validate-vectors", str(tmp_path)])
     assert code == 1
     assert "AGSC-E202" in err

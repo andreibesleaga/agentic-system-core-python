@@ -167,7 +167,11 @@ LEGACY_WELLKNOWN = "/.well-known/agentic-knowledge"
 
 
 def header_set(routes):
-    """The normative header facts for a route set: {pattern: {header: value}}."""
+    """The normative header facts for a route set: {pattern: {header: value}}.
+
+    No ``/query/*`` block: the query page and its WebAssembly policy belong to the
+    engine's Level-3 build, whose cases (build-0029, build-0030) this package does not
+    run, and no case this package runs reads that block."""
     headers = {"/*": {"Content-Security-Policy": CSP}}
     if any(route.startswith("/pages/") and route.endswith(".md") for route in routes):
         headers["/pages/*.md"] = {"Content-Type": MARKDOWN_CONTENT_TYPE}
@@ -202,8 +206,13 @@ def _finding(code, message, severity="error"):
     return {"code": code, "message": message, "severity": severity}
 
 
-def security_txt(authored, instant, base, legal):
-    """(text or None, findings).  ``authored`` is the Bundle root's file or None."""
+def security_txt(authored, instant, base, legal, policy=None):
+    """(text or None, findings).  ``authored`` is the Bundle root's file or None.
+
+    ``policy`` is ``site.security_policy``: where the authored file states no
+    ``Policy``, the declared disclosure page is used, else ``/legal/`` where that route
+    is emitted (``legal``), else none (AGSC-06-36 as amended for 1.1).
+    """
     route = base.rstrip("/") + "/.well-known/security.txt"
     if authored is None:
         return None, [_finding("AGSC-E901", "the Bundle root carries no .well-known/security.txt")]
@@ -244,7 +253,9 @@ def security_txt(authored, instant, base, legal):
             fields.append(("Expires", render_instant(build + datetime.timedelta(days=364))))
     if "Canonical" not in names:
         fields.append(("Canonical", route))
-    if "Policy" not in names and legal:
+    if "Policy" not in names and policy:
+        fields.append(("Policy", " ".join(str(policy).split())))
+    elif "Policy" not in names and legal:
         fields.append(("Policy", base.rstrip("/") + "/legal/"))
     if any(one["severity"] == "error" for one in findings):
         return None, findings
@@ -305,7 +316,13 @@ def stale_items(items, instant):
     return sorted(stale)
 
 
-def now_line(bundle_version, generated_at, bundle_hash, spec_version):
-    """AGSC-06-22: the four values, in order, with the fixed separators."""
+def now_line(bundle_version, generated_at, bundle_hash, spec_version, visibility="public"):
+    """AGSC-06-22: the four values, in order, with the fixed separators.
+
+    A ``restricted`` node's page is readable by anyone, so its line states neither the
+    content version nor the fingerprint (AGSC-11-20).
+    """
+    if visibility == "restricted":
+        return "built at %s, specification %s" % (generated_at, spec_version)
     return "content version %s, built at %s, fingerprint %s, specification %s" % (
         bundle_version, generated_at, bundle_hash, spec_version)

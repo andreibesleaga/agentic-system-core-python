@@ -55,6 +55,13 @@ always reaches this one.
 
 ## What runs here
 
+The checkers and the vector runner below run here. One part of the specification does
+not: the domain layer (site vocabulary, domain keys, warrants, contexts, crosswalks and
+SHACL shapes). In 1.1 only the engine checks it; its cases are reported not run with
+that reason, and Python parity for it is one of the
+["Ideas after 1.1"](https://github.com/andreibesleaga/agentic-system-core/blob/main/docs/ROADMAP.md#ideas-after-11)
+of the engine's roadmap.
+
 ### `agsc validate-wellknown <file>`
 
 Checks one discovery document — the file a node serves at
@@ -69,6 +76,16 @@ agsc validate-wellknown www/.well-known/knowledge-linkset \
      --peer ../other/www/.well-known/knowledge-linkset
 ```
 
+No node to check yet? The engine builds one. With the npm package installed, in a git
+repository of Markdown items with at least one commit (the ledger a Level-2 node links
+is derived from that history; without it Level 2 reports AGSC-E202 for the missing
+ledger link, in both checkers):
+
+```
+agsc build --level 2
+agsc validate-wellknown www/.well-known/knowledge-linkset --level 2
+```
+
 Levels 0 to 3 mean what the specification says they mean. At Level 0 and 1 the
 shape, the names, the ordering and the digest form are checked. At Level 2 and
 above the document must also be canonical bytes, every artefact link must carry
@@ -80,6 +97,14 @@ obtains credentials (AGSC-11-20). A document that declares a newer MINOR of the
 same MAJOR may use relations and attributes this version does not define: they are
 ignored with the warning `AGSC-E506`, never reported as errors; a document of
 another MAJOR gets no such tolerance (AGSC-00-21, AGSC-09-93).
+
+From 1.1, at Level 2 and above, the chunks surface link of a document that declares
+1.1.0 or later must carry `digest`, `agsc-chunk-count` and `agsc-chunk-set`
+(`AGSC-E202` for each one missing), and the count and the set commitment are
+recomputed over the chunk lines read, a sharded file's shards included (`AGSC-E201`
+when they differ); an `agsc-ledger-length` is compared with the entries of the ledger
+read (AGSC-06-44, AGSC-09-93). At every Level, an `a2a-card` declared on the node's own
+origin must be a card the node serves, else the warning `AGSC-E210` (AGSC-11-16).
 
 When the document is a file inside a `.well-known/` directory, every
 same-origin target is resolved on disk and its digest is verified against the
@@ -101,11 +126,18 @@ the last byte, and a cap of one mebibyte on the discovery document and of
 headers of the document and of every same-origin public file it fetches and
 checks the rules on cross-origin reading and caching (AGSC-11-03, AGSC-11-05):
 a missing header is `AGSC-E202`, a forbidden one `AGSC-E201`, errors at Level 2
-and above and warnings below (AGSC-09-93).
+and above and warnings below (AGSC-09-93); only a versioned copy under
+`/ns/<x.y.z>/` may be `immutable` (AGSC-06-06). It reads the `Link` header of the
+node's home page `/` too, which should carry the `describedby` link to the discovery
+document: its absence is the warning `AGSC-E202` (AGSC-06-25, AGSC-06-40). Every
+request of a run, redirects included, counts against one budget, 500 by default and
+`--max-requests <1..2000>` to set it; the request past it is `AGSC-E906`
+(AGSC-11-10(c)).
 
 From Python, `agentic_system_core.wellknown.validate(target, level=2,
 allow_network=True, fetcher=my_fetch)` reads a URL through a fetcher you supply
-instead of the built-in one. It is called as `my_fetch(url, dev, cap=n)`, where
+instead of the built-in one (`max_requests=n` sets the budget, which each call
+spends once). It is called as `my_fetch(url, dev, cap=n)`, where
 `cap` is the byte cap of that read — `1048576` for the discovery document,
 `33554432` for any other file — and it returns `(final_url, headers, body)`:
 the URL after redirects, the response headers as a dict with lower-case names,
@@ -122,6 +154,12 @@ rules: the required members, the closed area and level lists, the identifier
 grammars, the file encoding, the canonical member order, and the resolution of
 every rule identifier and every error code against the specification. An empty
 set is a failure, not a clean run.
+
+It also checks the `superseded_by` link: only a withdrawn vector carries it, and it
+names a vector of the same set. A folder where not one JSON file sits at a vector's
+path, `<area>/<prefix>-<nnnn>[-words].json` (one area folder, or a site's
+`/skills/index.json`), is not a vector set: the verb reports AGSC-E901 and judges
+none of its files. A missing folder is the same AGSC-E901 failure, exit 1.
 
 Both verbs need a vector directory: this package ships no vector set of its own.
 The vectors are in the npm package `agentic-system-core`, in its `tests/vectors/`
@@ -149,10 +187,21 @@ rule text of the specification alone, in the standard library:
 | `frontmatter` | a reader for the closed YAML subset of AGSC-02-02 (failsafe scalars, each rejected construct under its own code, line numbers), the item checks of spec/02, and the drop-in adoption of AGSC-02-90…93 |
 | `slug` | the slug grammar and uniqueness |
 | `jcs` | RFC 8785 canonical JSON with NFC before sorting |
-| `links` | the fourteen Link keys and their inverses, the cycle and cluster-tree checks, heading anchors, and inline-link resolution over a small CommonMark 0.31.2 scanner (headings and inline links only, outside code; its subset is written down in `agentic_system_core/markdown.py`) |
-| `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, and the JSON-LD context of AGSC-06-32 with the compaction it round-trips |
-| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt`, the content version and the staleness comparison; fourteen vectors of these seven areas need a whole build or the publisher's writers (`build-0015`, `build-0017`, `build-0020` to `build-0028`, `disc-0018`, `graph-0027`, `graph-0028`) and are reported as not run, by name |
-| `discovery` | `/llms.txt` and `/llms-full.txt` byte for byte, reachability, the sitemap and robots facts, the link-set writer, and the discovery-document checks including the restricted-node rule of AGSC-11-20 |
+| `links` | the fourteen Link keys and their inverses (the relation table of AGSC-03-01, shipped as data derived from the engine), the cycle and cluster-tree checks, the four warnings about what a Link says (a self-link, two relations a pair cannot both hold, a target of an unexpected kind, superseding a stable item: AGSC-03-23 to AGSC-03-26), heading anchors, and inline-link resolution over a small CommonMark 0.31.2 scanner (headings and inline links only, outside code; its subset is written down in `agentic_system_core/markdown.py`) |
+| `graph` | the RDF dataset of spec/05, canonical `graph.nq` (every line a quad named by the Bundle IRI, AGSC-04-15), the byte-pinned `graph.ttl` profile of AGSC-05-10, `graph.jsonld` and the per-item `/pages/<slug>.jsonld` files of AGSC-05-09, written with the published context, the JSON-LD context of AGSC-06-32 with the compaction it round-trips, the readings of the Link graph with their reasons (AGSC-05-33), the ten questions of AGSC-05-34, the SKOS view of AGSC-05-36, and the context address that stays `1.0.0` whatever the ontology version (AGSC-05-09, graph-0043) |
+| `build` | the `search.json` tokenizer and index, static query fragments, the served header set, `security.txt` (with a declared disclosure page), the content version, the `/now/` line (a restricted node's too) and the staleness comparison |
+| `discovery` | `/llms.txt` and `/llms-full.txt` byte for byte (the 1.1 layout, a restricted node's header too), reachability, the sitemap and robots facts, the link-set writer, the discovery-document checks including the restricted-node rule of AGSC-11-20 and the chunk facts of AGSC-06-44, and the web connection of a node as data and bytes: the Signposting links of `/` (AGSC-06-40), the home page's Dataset block (AGSC-06-41), the opt-in `ard.json` and `ai-catalog.json` (AGSC-06-42) and the A2A agent card (AGSC-06-34) |
+
+Vectors of these seven areas that `run-vectors` reports as not run, each with its reason:
+
+- Seventeen need a whole Bundle build: `build-0015`, `build-0017`, `build-0020` to `build-0023`, `build-0025` to `build-0030`, `build-0033`, `build-0034`, `disc-0018`, `disc-0032`, `graph-0027`.
+- Six need a writer this package does not carry, the HTML item pages, the chunk files, the closure file of `export --closure` (with the OWL 2 RL rules of AGSC-05-37) or the whole link table of AGSC-06-08 (this package's link-set writer covers part of it): `build-0031`, `build-0032`, `build-0037`, `disc-0020`, `disc-0021`, `graph-0041`.
+- Eleven belong to the domain layer (site vocabulary, domain keys, warrants, contexts, crosswalks, SHACL), which only the engine checks in 1.1: `fm-0022` to `fm-0025`, `fm-0027`, `graph-0042`, `graph-0044` to `graph-0046`, `links-0018`, `links-0019`.
+
+Eight of the whole-build cases are still checked by this package: the test suite has
+the engine build each Bundle, and `agentic_system_core/areas/build_tree.py` checks every
+expectation of the 1.0 surface cases (`build-0020` to `build-0028`, less the withdrawn
+`build-0024`) against the files written.
 
 The other areas need a Bundle build, the engine's composition or governance
 modules, or its command-line surface. Nothing is ever counted as a pass that
@@ -206,14 +255,14 @@ arguments and never through a shell.
 
 ## Version
 
-Two numbers, stated apart. The package version is `1.0.1`; the specification version
-it implements is `1.0.0` (`SPEC_VERSION`). A patch of the package — a defect in a check,
+Two numbers, stated apart. The package version is `1.1.0`; the specification version
+it implements is `1.1.0` (`SPEC_VERSION`). A patch of the package — a defect in a check,
 a message — does not move the specification, and `agsc --version` prints both:
-`agsc 1.0.1 (Python package; specification 1.0.0)`. Python packages use PEP 440, which
-spells a release the same way as SemVer, so the version on PyPI is `1.0.1` too; a
+`agsc 1.1.0 (Python package; specification 1.1.0)`. Python packages use PEP 440, which
+spells a release the same way as SemVer, so the version on PyPI is `1.1.0` too; a
 release candidate is spelled differently: SemVer's `X.Y.Z-rc.N` is PEP 440's
 `X.Y.ZrcN`. A release is tested against the engine at its package tag of the same
-version (`v1.0.1`).
+version (`v1.1.0`).
 What changed in each version, and what the checker may now report, is in the
 [change log](https://github.com/andreibesleaga/agentic-system-core-python/blob/main/CHANGELOG.md).
 
@@ -233,11 +282,24 @@ The discovery-file checker is meant to give the same verdict as the engine's
 `tools/validate-wellknown` on the same input. The test suite proves it: both
 tools are run over the same documents — the fixture set, a document taken from
 the engine's own conformance vectors, the built discovery files of two live
-sites and a set of deliberately broken files — at every Level, with and without
-a peer, and the status, the counts and the position and code of every finding
+sites, two nodes the engine builds for the run (its minimal fixture and the
+demonstration node) and a set of deliberately broken files — at every Level, with
+and without a peer, and the status, the counts and the position and code of every finding
 are compared. Message text is not compared: the specification leaves a message
 unspecified so it can be translated, and pins the code. That test is skipped,
 with a message saying so, when Node or the engine checkout is not present.
+
+One difference is known. When a digest target (`llms.txt`, say) or the ledger
+is a directory instead of a file, the engine's checker reports `EISDIR`, Node's own
+error name and not a registered code, and this package reports AGSC-E901, a
+target not found on disk. The exit code, the status and the counts are the same.
+A test pins the difference, so it fails once the engine reports a registered code.
+
+A second difference is in the agent card. A responder's `security_schemes` and
+`security_requirements` (AGSC-06-34) pass, in the engine, through the official A2A SDK's
+codec, which writes only the members A2A defines; this package has no SDK and leaves out
+only empty strings and empty lists, as the codec does, so a member A2A does not define is
+carried here and dropped there. The cases (`disc-0038`) state A2A's own members only.
 
 ## Tests
 
@@ -250,8 +312,9 @@ python -m venv .venv && .venv/bin/pip install -e ".[test]"
 Deterministic, fixed data, no clock, no network. The subprocesses are the Node tool
 and vector runner in the two equivalence tests, and the workflow steps that
 `tests/test_ci_workflows.py` runs on scratch input. The tests that need Node and the
-engine checkout beside this repository (`../agentic-system-core`) are skipped, with a
-message, when either is absent: a fresh clone passes with those skipped, and a pull
+engine checkout beside this repository (`../agentic-system-core`, or the checkout the
+environment variable `AGSC_ENGINE_DIR` names) are skipped, with a message, when either
+is absent: a fresh clone passes with those skipped, and a pull
 request is checked with the engine present
 ([docs/MAINTAINING.md](https://github.com/andreibesleaga/agentic-system-core-python/blob/main/docs/MAINTAINING.md)).
 

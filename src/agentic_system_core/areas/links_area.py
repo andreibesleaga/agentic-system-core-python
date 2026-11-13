@@ -3,7 +3,8 @@ inline-link resolution and orphans.
 
 Every member of ``expected`` is checked; an unknown member is a failure.
 ``warnings`` is the whole list of warnings the Link checks report, each
-``{code, slug}`` in slug order: at 1.0 these are the orphans of AGSC-03-10.
+``{code, slug}`` in slug order: the orphans of AGSC-03-10 (links-0009) and, from 1.1,
+the four warnings of AGSC-03-23 to 03-26 (links-0010 to links-0017).
 """
 
 from .. import links
@@ -76,7 +77,10 @@ def run(vector):
                     got = first[0].get(member) if first else None
                     items.append((member, got == expected[member], shown(got)))
         if have("warnings"):
-            found = orphans(given_items)
+            found = sorted(orphans(given_items) + [
+                {"code": one["code"], "slug": one["slug"]}
+                for one in links.link_warnings(given_items)],
+                key=lambda one: (one["slug"], one["code"]))
             items.append(("warnings", found == expected["warnings"], shown(found)))
         if "resolved" in expected or "unresolved" in expected:
             report = links.body_link_report(given_items)

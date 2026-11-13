@@ -1,0 +1,225 @@
+{
+  "relations": [
+    {
+      "key": "related",
+      "inverse": "related",
+      "symmetric": true,
+      "property": "skos:related",
+      "combiner": "advisory",
+      "transitive": false,
+      "selfLink": "warning",
+      "targets": {
+        "any": true,
+        "noCluster": true
+      },
+      "meaning": "The two items are connected in meaning, and neither depends on the other."
+    },
+    {
+      "key": "broader",
+      "inverse": "narrower",
+      "symmetric": false,
+      "property": "skos:broader",
+      "inverseProperty": "skos:narrower",
+      "combiner": "none",
+      "transitive": true,
+      "selfLink": "cycle",
+      "targets": {
+        "sameFamily": true
+      },
+      "meaning": "The target is a wider subject that this item falls under."
+    },
+    {
+      "key": "narrower",
+      "inverse": "broader",
+      "symmetric": false,
+      "property": "skos:narrower",
+      "inverseProperty": "skos:broader",
+      "combiner": "none",
+      "transitive": true,
+      "selfLink": "cycle",
+      "targets": {
+        "sameFamily": true
+      },
+      "meaning": "The target is a more specific subject that falls under this item."
+    },
+    {
+      "key": "uses",
+      "inverse": "used-by",
+      "symmetric": false,
+      "property": "asc:uses",
+      "inverseProperty": "asc:usedBy",
+      "combiner": "soft",
+      "transitive": false,
+      "selfLink": "warning",
+      "targets": {
+        "any": true
+      },
+      "meaning": "This item draws on the target and can still be used when the target is absent."
+    },
+    {
+      "key": "requires",
+      "inverse": "required-by",
+      "symmetric": false,
+      "property": "dcterms:requires",
+      "inverseProperty": "dcterms:isRequiredBy",
+      "combiner": "hard",
+      "transitive": true,
+      "selfLink": "cycle",
+      "targets": {
+        "any": true
+      },
+      "meaning": "This item cannot be used without the target, so choosing this item also takes the target."
+    },
+    {
+      "key": "excludes",
+      "inverse": "excludes",
+      "symmetric": true,
+      "property": "asc:excludes",
+      "combiner": "mutex",
+      "transitive": false,
+      "selfLink": "warning",
+      "targets": {
+        "any": true
+      },
+      "meaning": "This item and the target cannot be used together."
+    },
+    {
+      "key": "derived-from",
+      "inverse": "derivation-of",
+      "symmetric": false,
+      "property": "prov:wasDerivedFrom",
+      "combiner": "none",
+      "transitive": true,
+      "selfLink": "warning",
+      "targets": {
+        "any": true,
+        "lessonTarget": {
+          "type": "episode"
+        }
+      },
+      "meaning": "This item was produced from the target, which is its origin."
+    },
+    {
+      "key": "contradicts",
+      "inverse": "contradicts",
+      "symmetric": true,
+      "property": "asc:contradicts",
+      "combiner": "warn-both",
+      "transitive": false,
+      "selfLink": "warning",
+      "targets": {
+        "any": true
+      },
+      "meaning": "This item and the target make claims that cannot both be true."
+    },
+    {
+      "key": "supersedes",
+      "inverse": "superseded-by",
+      "symmetric": false,
+      "property": "dcterms:replaces",
+      "inverseProperty": "dcterms:isReplacedBy",
+      "combiner": "hide-superseded",
+      "transitive": true,
+      "selfLink": "warning",
+      "targets": {
+        "sameType": true
+      },
+      "meaning": "This item replaces the target, which stays published but is no longer the one to use."
+    },
+    {
+      "key": "implements",
+      "inverse": "implemented-by",
+      "symmetric": false,
+      "property": "asc:implements",
+      "inverseProperty": "asc:implementedBy",
+      "combiner": "none",
+      "transitive": false,
+      "selfLink": "warning",
+      "targets": {
+        "type": "concept",
+        "kinds": [
+          "spec",
+          "pattern",
+          "architecture"
+        ]
+      },
+      "meaning": "This item puts the target into practice, as code or a procedure puts a specification into practice."
+    },
+    {
+      "key": "verifies",
+      "inverse": "verified-by",
+      "symmetric": false,
+      "property": "asc:verifies",
+      "inverseProperty": "asc:isVerifiedBy",
+      "combiner": "none",
+      "transitive": false,
+      "selfLink": "warning",
+      "targets": {
+        "oneOf": [
+          {
+            "type": "concept",
+            "kinds": [
+              "spec",
+              "task"
+            ]
+          },
+          {
+            "type": "procedure"
+          },
+          {
+            "type": "gate"
+          }
+        ]
+      },
+      "meaning": "This item checks that the target holds."
+    },
+    {
+      "key": "covers",
+      "inverse": "covered-by",
+      "symmetric": false,
+      "property": "asc:covers",
+      "inverseProperty": "asc:coveredBy",
+      "combiner": "none",
+      "transitive": false,
+      "selfLink": "warning",
+      "targets": {
+        "any": true
+      },
+      "meaning": "This item covers the target, as a test or a document covers a requirement."
+    },
+    {
+      "key": "blocked-by",
+      "inverse": "blocks",
+      "symmetric": false,
+      "property": "asc:blockedBy",
+      "inverseProperty": "asc:blocks",
+      "combiner": "none",
+      "transitive": true,
+      "selfLink": "warning",
+      "targets": {
+        "type": "concept",
+        "kinds": [
+          "task"
+        ]
+      },
+      "meaning": "This item cannot go ahead until the target is resolved."
+    },
+    {
+      "key": "decided-by",
+      "inverse": "decides",
+      "symmetric": false,
+      "property": "asc:decidedBy",
+      "inverseProperty": "asc:decides",
+      "combiner": "none",
+      "transitive": false,
+      "selfLink": "warning",
+      "targets": {
+        "type": "concept",
+        "kinds": [
+          "decision"
+        ]
+      },
+      "meaning": "The target is the decision record that settled this item."
+    }
+  ]
+}

@@ -13,7 +13,9 @@ and ``0x1F`` stay text.  Rejected, each under its own code (AGSC-02-02):
 
 Every error carries the 1-based line of the file it was found on.  Each mapping
 records the line of each of its keys in ``lines`` so a later check can point at
-the key it faults.  Standard library only; no general YAML library is involved,
+the key it faults.  A block sequence is a :class:`Sequence`, so :func:`depth` can
+count block nesting (the 64-level bound of AGSC-02-02, 1.1) apart from flow
+sequences.  Standard library only; no general YAML library is involved,
 so nothing outside the subset can be accepted by accident.
 """
 
@@ -34,6 +36,27 @@ class Mapping(dict):
     def __init__(self):
         dict.__init__(self)
         self.lines = {}
+
+
+class Sequence(list):
+    """A block sequence; a flow sequence of scalars is a plain list, a value."""
+
+
+#: AGSC-02-02 (1.1): the deepest nesting of block collections a tool must handle.
+NESTING_BOUND = 64
+
+
+def depth(value):
+    """The deepest nesting of block mappings and block sequences in ``value``: the
+    frontmatter mapping is level 1, each block collection inside a value adds one, and
+    a flow sequence of scalars adds none (AGSC-02-02, 1.1)."""
+    if isinstance(value, Mapping):
+        children = value.values()
+    elif isinstance(value, Sequence):
+        children = value
+    else:
+        return 0
+    return 1 + max([depth(child) for child in children] + [0])
 
 
 _KEY = re.compile(r"^([^\s'\"#][^:#]*?|'[^']*'|\"(?:[^\"\\]|\\.)*\")[ \t]*:(?:[ \t]+|$)(.*)$")
@@ -244,7 +267,7 @@ class _Reader(object):
             out[key] = self.value(rest, indent, line, in_sequence=False)
 
     def sequence(self, indent):
-        out = []
+        out = Sequence()
         while True:
             text = self.peek()
             if text is None or _indent(text) != indent:

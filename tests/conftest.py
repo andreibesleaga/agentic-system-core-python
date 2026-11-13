@@ -14,7 +14,22 @@ VECTORS = FIXTURES / "vectors"
 #: needs the engine; the two site tests need the built sites.  Every other test
 #: runs without any of them, and each one says so when it is skipped.
 NEIGHBOURS = HERE.parent.parent
-ENGINE = NEIGHBOURS / "agentic-system-core"
+
+#: The environment variable that names another engine checkout (a second worktree
+#: of a release branch, say).  Unset or empty: the sibling ``../agentic-system-core``.
+ENGINE_DIR_VARIABLE = "AGSC_ENGINE_DIR"
+
+
+def engine_dir(environ):
+    """The engine checkout the suite compares with: ``AGSC_ENGINE_DIR`` when it is set
+    (a relative value is read from the working directory), else the sibling checkout."""
+    value = environ.get(ENGINE_DIR_VARIABLE)
+    if value:
+        return pathlib.Path(value).resolve()
+    return NEIGHBOURS / "agentic-system-core"
+
+
+ENGINE = engine_dir(os.environ)
 
 #: The built discovery files of the two nodes, when their checkouts are here.
 SITE_DOCUMENTS = [

@@ -24,7 +24,8 @@ the engine live in the [engine repository](https://github.com/andreibesleaga/age
 
 Run from the repository root, with the engine checked out beside it at
 `../agentic-system-core` and Node 22.13 or later (without them the equivalence tests are
-skipped):
+skipped). To compare with another engine checkout, set `AGSC_ENGINE_DIR` to its path
+([docs/MAINTAINING.md](docs/MAINTAINING.md), "The equivalence proof"):
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -e ".[test]"
@@ -38,8 +39,9 @@ Tests are deterministic: fixed data, no clock, no network. Write the failing tes
 ## What you may change, and what you may not
 
 - **Do not edit** the vector copies under `tests/fixtures/vectors/`; copy them again from
-  the engine. Do not type `src/agentic_system_core/data/spec-index.json`; derive it with
-  the command in [docs/MAINTAINING.md](docs/MAINTAINING.md).
+  the engine. Do not type `src/agentic_system_core/data/spec-index.json` or
+  `src/agentic_system_core/data/context.jsonld`; derive them with the commands in
+  [docs/MAINTAINING.md](docs/MAINTAINING.md).
 - **A rule, a vector or the engine is wrong:** propose the change in the engine
   repository; this package follows in its next release.
 - **Do not add a runtime dependency.** `pyproject.toml` has `dependencies = []` and the

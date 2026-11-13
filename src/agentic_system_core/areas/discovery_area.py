@@ -2,26 +2,32 @@
 
 Every member of ``expected`` is checked; an unknown member is a failure.  A
 vector whose input is a whole Bundle (``bundle``) needs a site build this package
-does not carry, and is reported as not run, by name.
+does not carry, and is reported as not run, by name.  The cases of the web
+connection and of the 1.1 chunk facts (disc-0026 to disc-0031, disc-0033, disc-0035 to disc-0038) are
+handled by vector id in ``discovery_web.py``, as the engine handles them.  The
+whole-document cases disc-0020 and disc-0021 are not run (``CASES_NOT_RUN``): the
+engine builds the document with its writer of the whole link table and compares the
+bytes, a writer this package carries only part of.
 """
 
-import base64
 import copy
-import hashlib
 
 from .. import MEDIA_TYPE, PROFILE_URI, REL_BASE, SPEC_VERSION, WELLKNOWN_PATH
 from .. import discovery
 from .. import wellknown
+from . import discovery_web
 from ._assert import checks, shown
 
 _OMITTABLE = ("agsc-bundle-hash", "agsc-bundle-version", "agsc-counts", "agsc-generated-at",
               "agsc-ledger-head", "agsc-spec-version", "digest")
 
 
-def _check(document, level):
-    """(errors, findings) of the package's own checker over an in-memory document."""
+def _check(document, level, reader=SPEC_VERSION):
+    """(errors, findings) of the package's own checker over an in-memory document,
+    read by a reader of the specification version ``reader``."""
     findings = []
-    result = wellknown.check(wellknown.from_value(document), level, findings)
+    result = wellknown.check(wellknown.from_value(document), level, findings,
+                             spec_version=reader)
     errors = [one for one in findings if one["severity"] == "error"]
     return errors, findings, result
 
@@ -199,7 +205,9 @@ def _ledger_case(case, want):
 
 
 def _reader_case(case, want):
-    """One disc-0019 case: a received document read by a reader of a given version.
+    """One disc-0019 or disc-0023 case: a received document read by a reader of the
+    version the case states (``reader_version``), as the engine's handler passes it to
+    its reader.
 
     The case is about one unknown relation: of a newer MINOR it is the warning
     AGSC-E506 and nothing else, of another MAJOR the error AGSC-E209 (AGSC-00-21,
@@ -208,12 +216,7 @@ def _reader_case(case, want):
     digest rule and AGSC-00-23 to a document of another MAJOR, which the case does
     not state."""
     name = case["name"]
-    mine = SPEC_VERSION.split("-")[0].split(".")[:2]
-    reader = str(case["reader_version"]).split("-")[0].split(".")[:2]
-    if reader != mine:
-        return [(name + ":reader", False, "this package reads as %s, not %s"
-                 % (SPEC_VERSION, case["reader_version"]))]
-    errors, findings, _ = _check(case["document"], case["level"])
+    errors, findings, _ = _check(case["document"], case["level"], str(case["reader_version"]))
     out = [(name + ":valid", (errors == []) == want["valid"], shown(errors))]
     known = {"name", "valid"}
     if "findings" in want:
@@ -222,43 +225,6 @@ def _reader_case(case, want):
                  if one["code"] in ("AGSC-E209", "AGSC-E506")]
         out.append((name + ":findings", codes == want["findings"], shown(codes)))
     unknown = sorted(set(want) - known)
-    if unknown:
-        out.append((name + ":unhandled", False, shown(unknown)))
-    return out
-
-
-def _digest(text):
-    return "sha-256=:%s:" % base64.b64encode(hashlib.sha256(text.encode("utf-8")).digest()).decode("ascii")
-
-
-def _whole_case(case, want):
-    """One disc-0020 case: the whole document a publisher emits for the input.
-
-    This package is a checker, not a publisher, so it checks the stated document: it
-    is valid at its Level, its anchor is the node's, and every ``digest`` it carries
-    is the SHA-256 of the file text the input gives for that route, with
-    ``agsc-bundle-hash`` the digest of ``graph.nq`` (AGSC-06-08, AGSC-04-15)."""
-    name = case["name"]
-    document = want["document"]
-    errors, _, _ = _check(document, case["level"])
-    out = [(name + ":valid", errors == [], shown(errors))]
-    context = document["linkset"][0]
-    out.append((name + ":anchor", context.get("anchor") == case["base"].rstrip("/") + "/",
-                shown(context.get("anchor"))))
-    wrong = []
-    for relation, targets in context.items():
-        if not isinstance(targets, list):
-            continue
-        for target in targets:
-            route = target["href"][len(case["base"].rstrip("/")):]
-            if "digest" in target and target["digest"] != [_digest(case["files"].get(route, ""))]:
-                wrong.append(route)
-    out.append((name + ":digests", wrong == [], shown(wrong)))
-    bundle_hash = _describedby(document).get("agsc-bundle-hash")
-    if bundle_hash is not None:
-        out.append((name + ":bundle-hash", bundle_hash == [_digest(case["files"]["/graph.nq"])],
-                    shown(bundle_hash)))
-    unknown = sorted(set(want) - {"document", "name"})
     if unknown:
         out.append((name + ":unhandled", False, shown(unknown)))
     return out
@@ -284,6 +250,9 @@ def _robots_case(case, want):
 
 
 def run(vector):
+    web = discovery_web.run(vector)
+    if web is not None:
+        return web
     given = vector["input"]
     expected = vector["expected"]
     if "bundle" in given and "items" not in given:
@@ -309,8 +278,6 @@ def run(vector):
                 handler = _reader_case
             elif "document" in case:
                 handler = _document_case
-            elif "files" in case:
-                handler = _whole_case
             elif "ledger_head" in case:
                 handler = _ledger_case
             else:
@@ -440,7 +407,8 @@ def run(vector):
         common = dict(clusters=given.get("clusters"),
                       spec_version=given.get("spec_version", SPEC_VERSION),
                       bundle_version=given.get("bundle_version", ""),
-                      generated_at=given.get("generated_at", ""))
+                      generated_at=given.get("generated_at", ""),
+                      visibility=given.get("visibility"))
         short = discovery.llms_txt(given["bundle"], given["items"], **common)
         full = discovery.llms_full_txt(given["bundle"], given["items"], **common)
         if have("output"):

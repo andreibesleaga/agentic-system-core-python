@@ -14,13 +14,13 @@ Every rule identifier below is a rule of the AgenticSystemCore specification.
 
 # The PEP 440 spelling of the version; for a release it is the SemVer spelling too
 # (see README, "Version").
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 #: The SemVer spelling of the package version, the one the Node package uses too.
-SEMVER_VERSION = "1.0.1"
+SEMVER_VERSION = "1.1.0"
 
 #: The specification version this package implements (spec/00-overview.md).
-SPEC_VERSION = "1.0.0"
+SPEC_VERSION = "1.1.0"
 
 #: The well-known URI suffix of AGSC-06-07: /.well-known/knowledge-linkset.
 WELLKNOWN_SUFFIX = "knowledge-linkset"

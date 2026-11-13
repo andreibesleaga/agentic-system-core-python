@@ -1,13 +1,16 @@
 """The vector-set checker and the runner for the areas this package covers."""
 
+import io
 import json
 import os
 import re
+import shutil
+import subprocess
 
 import pytest
 
-from agentic_system_core import vectors
-from conftest import ENGINE, VECTORS
+from agentic_system_core import SPEC_VERSION, cli, vectors
+from conftest import ENGINE, VECTORS, engine_available
 
 
 def vectors_module_areas():
@@ -22,38 +25,59 @@ def codes(result):
 def test_the_shipped_vector_copies_pass_the_file_format_check():
     result, count, empty = vectors.validate(str(VECTORS))
     assert result["status"] == "pass", result["findings"]
-    assert count == 94
+    assert count == 156
     for area in vectors_module_areas():
         assert area not in empty
     assert "lint" in empty
 
 
+#: The vectors of the seven areas this package reports as not run, by reason.
+NEEDS_A_WHOLE_BUILD = [
+    "build-0015", "build-0017", "build-0020", "build-0021", "build-0022", "build-0023",
+    "build-0025", "build-0026", "build-0027", "build-0028", "build-0029", "build-0030",
+    "build-0033", "build-0034", "disc-0018", "disc-0032", "graph-0027"]
+NEEDS_A_WRITER_THIS_PACKAGE_LACKS = ["build-0031", "build-0032", "build-0037", "disc-0020",
+                                     "disc-0021", "graph-0041"]
+DOMAIN_LAYER = ["fm-0022", "fm-0023", "fm-0024", "fm-0025", "fm-0027", "graph-0042",
+                "graph-0044", "graph-0045", "graph-0046", "links-0018", "links-0019"]
+
+
 def test_every_vector_of_every_area_this_package_runs_passes():
     report, code = vectors.run(str(VECTORS))
+    failed = [one["id"] for one in report["results"] if one["status"] == "fail"]
+    assert failed == []
     assert code == 0
-    assert report["tally"]["fail"] == 0
-    assert report["tally"]["pass"] == 78
-    # Thirteen vectors need a whole Bundle build and one the publisher's JSON-LD writer:
-    # reported not run, by name.
-    assert report["tally"]["not_run"] == 14
-    assert sorted(report["vectors_not_run"]) == [
-        "build-0015", "build-0017", "build-0020", "build-0021", "build-0022", "build-0023",
-        "build-0024", "build-0025", "build-0026", "build-0027", "build-0028", "disc-0018",
-        "graph-0027", "graph-0028"]
+    assert report["tally"]["pass"] == 115
+    # Thirty-four vectors are reported not run, by name, each with its reason.
+    not_run = NEEDS_A_WHOLE_BUILD + NEEDS_A_WRITER_THIS_PACKAGE_LACKS + DOMAIN_LAYER
+    assert report["tally"]["not_run"] == len(not_run) == 34
+    assert sorted(report["vectors_not_run"]) == sorted(not_run)
+    for identifier in DOMAIN_LAYER:
+        assert report["vectors_not_run"][identifier] == "domain layer: engine only in 1.1"
+    reasons = report["vectors_not_run"]
+    for identifier in ("build-0029", "build-0030"):
+        assert reasons[identifier] == "needs the engine's build and the query page (Level 3)"
+    assert "PROV-O" in reasons["disc-0032"] and "writes no HTML" in reasons["disc-0032"]
+    assert "export --closure" in reasons["graph-0041"]
+    for identifier in ("disc-0020", "disc-0021"):
+        assert "whole link table of AGSC-06-08" in reasons[identifier]
+    assert report["tally"]["withdrawn"] == 7
     assert report["areas_run"] == vectors_module_areas()
     assert report["areas_not_run"] == {}
-    assert "78 pass" in report["summary"]
-    assert "14 not run by this package" in report["summary"]
+    assert "115 pass" in report["summary"]
+    assert "34 not run by this package" in report["summary"]
 
 
 def test_a_level_selects_its_area_set():
     report, _ = vectors.run(str(VECTORS), level=0)
     # Level 0 runs frontmatter, slug, bundle and discovery only (AGSC-10-02), less the
     # discovery cases AGSC-10-15 assigns to a higher Level: five discovery cases remain.
-    assert report["total"] == 22 + 6 + 5
-    assert report["tally"]["pass"] == 22 + 6 + 5
+    # The two withdrawn discovery cases of 1.0 are skipped, never counted as a pass.
+    assert report["total"] == 22 + 7 + 8
+    assert report["tally"]["pass"] == 22 + 7 + 6
+    assert report["tally"]["withdrawn"] == 2
     report, _ = vectors.run(str(VECTORS), level=3)
-    assert report["total"] == 94
+    assert report["total"] == 156
 
 
 @pytest.mark.skipif(not (ENGINE / "spec").is_dir(), reason="the engine checkout is not here")
@@ -79,6 +103,23 @@ def test_an_area_this_package_does_not_run_is_named_never_skipped(tmp_path):
     assert report["results"][0]["status"] == "not-run"
     assert "lint" in report["areas_not_run"]
     assert "not run by this package" in report["summary"]
+
+
+def test_a_case_of_an_area_not_run_can_carry_its_own_reason(tmp_path):
+    # bundle-0018 and bundle-0019 need the diagram compiler, not only the Bundle loader;
+    # the area keeps its own reason in areas_not_run.
+    area = tmp_path / "bundle"
+    area.mkdir()
+    for identifier in ("bundle-0001", "bundle-0018"):
+        vector = {"area": "bundle", "description": "A fixture.", "expected": {},
+                  "id": identifier, "input": {}, "level": "required", "rule": "AGSC-01-42"}
+        (area / (identifier + ".json")).write_bytes(
+            json.dumps(vector, separators=(",", ":")).encode("utf-8") + b"\n")
+    report, _ = vectors.run(str(tmp_path))
+    details = dict((one["id"], one["detail"]) for one in report["results"])
+    assert details["bundle-0018"] == "needs the diagram compiler (Level 3)"
+    assert details["bundle-0001"] == report["areas_not_run"]["bundle"]
+    assert "Bundle loader" in report["areas_not_run"]["bundle"]
 
 
 def test_the_pending_list_is_the_engines(tmp_path):
@@ -187,7 +228,7 @@ def _good(**overrides):
     vector = {
         "area": "jcs", "description": "A fixture.", "expected": {"output": "{}"},
         "id": "jcs-9100", "input": {"value": {}}, "level": "required",
-        "options": {"spec_version": "1.0.0"}, "rule": "AGSC-04-05",
+        "options": {"spec_version": SPEC_VERSION}, "rule": "AGSC-04-05",
     }
     vector.update(overrides)
     return vector
@@ -224,8 +265,8 @@ def test_a_missing_required_member_is_e202(tmp_path):
 
 
 def test_a_duplicate_id_is_e201(tmp_path):
-    _write(tmp_path / "jcs", "a.json", _good())
-    _write(tmp_path / "jcs", "b.json", _good())
+    _write(tmp_path / "jcs", "jcs-9100.json", _good())
+    _write(tmp_path / "jcs", "jcs-9100-copy.json", _good())
     result, _, _ = vectors.validate(str(tmp_path))
     assert "AGSC-E201" in codes(result)
 
@@ -237,21 +278,21 @@ def test_the_folder_must_agree_with_the_area(tmp_path):
 
 
 def test_encoding_faults_are_e108(tmp_path):
-    _write(tmp_path / "jcs", "a.json", _good(), trailer=b"\n\n")
+    _write(tmp_path / "jcs", "jcs-9100.json", _good(), trailer=b"\n\n")
     result, _, _ = vectors.validate(str(tmp_path))
     assert "AGSC-E108" in codes(result)
 
     other = tmp_path / "two" / "jcs"
     other.mkdir(parents=True)
     body = json.dumps(_good(), separators=(",", ":"), sort_keys=True)
-    (other / "a.json").write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8") + b"\r\n")
+    (other / "jcs-9100.json").write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8") + b"\r\n")
     result, _, _ = vectors.validate(str(tmp_path / "two"))
     assert codes(result).count("AGSC-E108") >= 2
 
 
 def test_non_nfc_text_is_e108_unless_the_case_is_the_exemption(tmp_path):
     decomposed = _good(description="A fixture with a decomposed é.")
-    _write(tmp_path / "jcs", "a.json", decomposed)
+    _write(tmp_path / "jcs", "jcs-9100.json", decomposed)
     result, _, _ = vectors.validate(str(tmp_path))
     assert "AGSC-E108" in codes(result)
 
@@ -259,7 +300,7 @@ def test_non_nfc_text_is_e108_unless_the_case_is_the_exemption(tmp_path):
     exempt.mkdir(parents=True)
     body = json.dumps(_good(id="jcs-0005", description="A fixture with a decomposed é."),
                       ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    (exempt / "a.json").write_bytes(body.encode("utf-8") + b"\n")
+    (exempt / "jcs-9100.json").write_bytes(body.encode("utf-8") + b"\n")
     result, _, _ = vectors.validate(str(tmp_path / "two"))
     assert "AGSC-E108" not in codes(result)
 
@@ -267,7 +308,7 @@ def test_non_nfc_text_is_e108_unless_the_case_is_the_exemption(tmp_path):
 def test_members_out_of_jcs_order_are_e601(tmp_path):
     area = tmp_path / "jcs"
     area.mkdir()
-    (area / "a.json").write_bytes(
+    (area / "jcs-9100.json").write_bytes(
         b'{"id":"jcs-9100","area":"jcs","description":"A fixture.","expected":{"output":"{}"},'
         b'"input":{"value":{}},"level":"required","rule":"AGSC-04-05"}\n')
     result, _, _ = vectors.validate(str(tmp_path))
@@ -277,7 +318,7 @@ def test_members_out_of_jcs_order_are_e601(tmp_path):
 def test_the_input_value_subtree_is_exempt_from_the_order_rule(tmp_path):
     area = tmp_path / "jcs"
     area.mkdir()
-    (area / "a.json").write_bytes(
+    (area / "jcs-9100.json").write_bytes(
         b'{"area":"jcs","description":"A fixture.","expected":{"output":"{\\"a\\":1,\\"b\\":2}"},'
         b'"id":"jcs-9100","input":{"value":{"b":2,"a":1}},"level":"required",'
         b'"rule":"AGSC-04-05"}\n')
@@ -286,7 +327,7 @@ def test_the_input_value_subtree_is_exempt_from_the_order_rule(tmp_path):
 
 
 def test_a_withdrawn_vector_must_carry_a_reason_and_a_reduced_expectation(tmp_path):
-    _write(tmp_path / "jcs", "a.json", _good(level="withdrawn"))
+    _write(tmp_path / "jcs", "jcs-9100.json", _good(level="withdrawn"))
     result, _, _ = vectors.validate(str(tmp_path))
     assert codes(result).count("AGSC-E202") == 1
     assert "AGSC-E201" in codes(result)
@@ -295,17 +336,20 @@ def test_a_withdrawn_vector_must_carry_a_reason_and_a_reduced_expectation(tmp_pa
 def test_a_file_that_is_not_json_is_e201(tmp_path):
     area = tmp_path / "jcs"
     area.mkdir()
-    (area / "a.json").write_bytes(b"not json\n")
+    (area / "jcs-9100.json").write_bytes(b"not json\n")
     result, _, _ = vectors.validate(str(tmp_path))
     assert codes(result) == ["AGSC-E201"]
 
 
 def test_the_bundled_spec_index_is_the_one_the_specification_declares():
     index = vectors.bundled_spec_index()
-    assert index["spec_version"] == "1.0.0"
+    # One constant names the version the package implements (B13 moves both to 1.1.0).
+    assert index["spec_version"] == SPEC_VERSION
     assert "AGSC-04-05" in index["rule_ids"]
     assert "AGSC-E201" in index["error_codes"]
-    assert len(index["error_codes"]) == 91  # AGSC-E416 registered 2026-09-24
+    # 1.1 registers AGSC-E005, E313 to E317, E417 to E423 and E512 (spec/09 section 9.4).
+    assert len(index["error_codes"]) == 105
+    assert "AGSC-E313" in index["error_codes"] and "AGSC-03-23" in index["rule_ids"]
 
 
 def test_the_index_reads_the_declaration_not_a_candidate_quoted_as_history(tmp_path):
@@ -328,6 +372,9 @@ def test_the_bundled_index_agrees_with_the_live_specification():
                     reason="the engine checkout is not here")
 def test_the_shipped_copies_are_the_engines_bytes():
     for area in vectors_module_areas():
+        # Every file of the engine's area is here, and nothing else is.
+        assert sorted(os.listdir(str(VECTORS / area))) == \
+            sorted(os.listdir(str(ENGINE / "tests" / "vectors" / area))), area
         for name in sorted(os.listdir(str(VECTORS / area))):
             ours = (VECTORS / area / name).read_bytes()
             theirs = (ENGINE / "tests" / "vectors" / area / name).read_bytes()
@@ -343,9 +390,9 @@ def test_the_whole_engine_vector_set_passes_the_file_format_check():
 
 
 def test_a_vector_directory_that_is_not_tests_vectors_still_names_files(tmp_path):
-    _write(tmp_path / "jcs", "a.json", _good(id="JCS-1"))
+    _write(tmp_path / "jcs", "jcs-9100.json", _good(id="JCS-1"))
     result, _, _ = vectors.validate(str(tmp_path), root=str(tmp_path))
-    assert result["findings"][0]["file"] == "jcs/a.json"
+    assert result["findings"][0]["file"] == "jcs/jcs-9100.json"
 
 
 def test_a_specification_that_declares_no_rule_is_called_vacuous(tmp_path):
@@ -354,7 +401,7 @@ def test_a_specification_that_declares_no_rule_is_called_vacuous(tmp_path):
     (spec / "00-overview.md").write_bytes(b"1.0.0\n")
     (spec / "09-conformance.md").write_bytes(b"| `AGSC-E201` | a shape fault |\n")
     area = tmp_path / "vectors" / "jcs"
-    _write(area, "a.json", _good())
+    _write(area, "jcs-9100.json", _good())
     result, _, _ = vectors.validate(str(tmp_path / "vectors"), spec=str(spec))
     assert "AGSC-E901" in codes(result)
     assert any("vacuous" in one["message"] for one in result["findings"])
@@ -372,3 +419,113 @@ def test_a_slug_vector_that_states_no_pattern_still_runs(tmp_path):
         json.dumps(vector, separators=(",", ":"), sort_keys=True).encode("utf-8") + b"\n")
     report, code = vectors.run(str(tmp_path))
     assert code == 0 and report["tally"]["pass"] == 1
+
+
+def _withdrawn(**overrides):
+    vector = _good(expected={"withdrawn": True}, level="withdrawn",
+                   reason="replaced by a later case")
+    vector.update(overrides)
+    return vector
+
+
+def test_a_withdrawn_vector_may_name_the_vector_that_supersedes_it(tmp_path):
+    _write(tmp_path / "jcs", "jcs-9100.json", _withdrawn(superseded_by="jcs-9101"))
+    _write(tmp_path / "jcs", "jcs-9101.json", _good(id="jcs-9101"))
+    result, _, _ = vectors.validate(str(tmp_path))
+    assert result["status"] == "pass", result["findings"]
+
+
+@pytest.mark.parametrize("vector,expected", [
+    # AGSC-09-04: only a withdrawn vector carries the link...
+    (_good(superseded_by="jcs-9101"), ["AGSC-E201"]),
+    # ...it is a vector identifier...
+    (_withdrawn(superseded_by="JCS-1"), ["AGSC-E204"]),
+    (_withdrawn(superseded_by=7), ["AGSC-E204"]),
+    # ...and it names a vector of the same set.
+    (_withdrawn(superseded_by="jcs-9999"), ["AGSC-E201"]),
+    (_good(superseded_by="jcs-9999"), ["AGSC-E201", "AGSC-E201"]),
+], ids=["not-withdrawn", "not-an-id", "not-a-string", "names-no-vector", "both"])
+def test_a_superseded_by_link_is_checked_as_the_engine_checks_it(tmp_path, vector, expected):
+    _write(tmp_path / "jcs", "jcs-9100.json", vector)
+    _write(tmp_path / "jcs", "jcs-9101.json", _good(id="jcs-9101"))
+    result, _, _ = vectors.validate(str(tmp_path))
+    assert codes(result) == expected
+
+
+def test_a_folder_with_no_file_of_the_vector_shape_is_not_a_vector_tree(tmp_path):
+    # One area folder given in place of the tree: the files sit one level too high.
+    _write(tmp_path, "jcs-9100.json", _good())
+    result, count, _ = vectors.validate(str(tmp_path))
+    assert codes(result) == ["AGSC-E901"] and count == 0
+    assert "not a vector directory" in result["findings"][0]["message"]
+
+
+def test_a_published_skills_index_is_not_judged_as_a_vector(tmp_path):
+    (tmp_path / "skills").mkdir()
+    (tmp_path / "skills" / "index.json").write_bytes(b'{"skills":[]}\n')
+    result, count, _ = vectors.validate(str(tmp_path))
+    assert codes(result) == ["AGSC-E901"] and count == 0
+
+
+def test_inside_a_vector_tree_a_misnamed_file_is_still_judged(tmp_path):
+    _write(tmp_path / "jcs", "jcs-9100.json", _good())
+    (tmp_path / "jcs" / "notes.json").write_bytes(b"not json\n")
+    result, count, _ = vectors.validate(str(tmp_path))
+    assert codes(result) == ["AGSC-E201"] and count == 2
+
+
+def test_a_missing_folder_is_an_e901_finding(tmp_path):
+    result, count, _ = vectors.validate(str(tmp_path / "nowhere"))
+    assert codes(result) == ["AGSC-E901"] and count == 0
+    assert "no such directory" in result["findings"][0]["message"]
+
+
+def _engine_validate(directory):
+    done = subprocess.run(["node", str(ENGINE / "tools" / "validate-vectors"), str(directory),
+                           "--json"], capture_output=True, text=True, cwd=str(ENGINE))
+    envelope = json.loads(done.stdout)
+    return done.returncode, envelope["status"], sorted(one["code"] for one in envelope["findings"])
+
+
+def _python_validate(directory):
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(["validate-vectors", str(directory), "--json"], out=out, err=err)
+    envelope = json.loads(out.getvalue())
+    return code, envelope["status"], sorted(one["code"] for one in envelope["findings"])
+
+
+def _vector_tree_with(tmp_path, identifier, **members):
+    tree = tmp_path / "vectors"
+    shutil.copytree(str(VECTORS), str(tree))
+    path = next(tree.glob("*/%s*.json" % identifier))
+    vector = json.loads(path.read_text(encoding="utf-8"))
+    vector.update(members)
+    path.write_text(json.dumps(vector, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8")
+    return tree
+
+
+def _inputs_the_two_validators_judge(tmp_path):
+    skills = tmp_path / "site"
+    (skills / "skills").mkdir(parents=True)
+    (skills / "skills" / "index.json").write_bytes(b'{"skills":[]}\n')
+    return {
+        "copies": VECTORS,
+        "superseded-by-on-a-required-vector":
+            _vector_tree_with(tmp_path / "a", "slug-0001", superseded_by="slug-9999"),
+        "superseded-by-on-a-withdrawn-vector":
+            _vector_tree_with(tmp_path / "b", "disc-0013", superseded_by="disc-0004"),
+        "one-area-folder": VECTORS / "slug",
+        "a-skills-index-only": skills,
+        "a-missing-folder": tmp_path / "nowhere",
+    }
+
+
+@pytest.mark.skipif(not (engine_available() and (ENGINE / "tools" / "validate-vectors").is_file()),
+                    reason="the validator equivalence needs Node and the engine checkout")
+@pytest.mark.parametrize("name", ["copies", "superseded-by-on-a-required-vector",
+                                  "superseded-by-on-a-withdrawn-vector", "one-area-folder",
+                                  "a-skills-index-only", "a-missing-folder"])
+def test_both_validators_agree(tmp_path, name):
+    directory = _inputs_the_two_validators_judge(tmp_path)[name]
+    assert _python_validate(directory) == _engine_validate(directory)

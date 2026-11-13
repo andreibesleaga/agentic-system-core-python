@@ -11,6 +11,9 @@ Node tool applies (AGSC-11-07/08/09) apply here:
   resolve to one address for the check and another for the request;
 * at most three redirects, and one ten-second deadline per response, from the
   request to the last byte (AGSC-11-10(e, f));
+* a budget of requests for one run, every request counted, redirects included:
+  ``federation.max_requests``' default of 500, settable from 1 to 2000, and the
+  request past it is AGSC-E906 (AGSC-11-06, AGSC-11-10(c));
 * a cap of one mebibyte on a discovery document and of ``federation.max_bytes``'
   default on any other artefact; a fetch aborted at a cap or at the deadline is
   AGSC-E907.  The deadline is not an idle timeout, which a slow server could keep
@@ -38,6 +41,9 @@ _PIECE = 65536
 #: The federation defaults of AGSC-11-06.
 REDIRECT_LIMIT = 3
 TIMEOUT_SECONDS = 10
+#: ``federation.max_requests`` (AGSC-11-06): the default and the range a run may set.
+MAX_REQUESTS = 500
+MAX_REQUESTS_RANGE = (1, 2000)
 
 _BLOCKED_V4 = [
     "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "169.254.0.0/16", "172.16.0.0/12",
@@ -62,6 +68,22 @@ class TransportError(Exception):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+class RequestBudget(object):
+    """The requests one run may still send (AGSC-11-10(c)); the engine's checker keeps the
+    same count, over the document, its targets and its peer."""
+
+    def __init__(self, limit=MAX_REQUESTS):
+        self.limit = limit
+        self.spent = 0
+
+    def spend(self):
+        """Count one request, or refuse it with AGSC-E906 when the budget is spent."""
+        if self.spent >= self.limit:
+            raise TransportError("AGSC-E906", "request budget of %d spent (federation.max_requests, "
+                                              "AGSC-11-10(c))" % self.limit)
+        self.spent += 1
 
 
 def is_loopback(address):
@@ -190,8 +212,7 @@ def fetch_once(href, dev=False, cap=MAX_BYTES):
         )
         response = connection.getresponse()
         body = _read_within(response, deadline, cap)
-        headers = {name.lower(): value for name, value in response.getheaders()}
-        return response.status, headers, body
+        return response.status, _header_fields(response.getheaders()), body
     except TransportError:
         raise
     except socket.timeout:
@@ -203,11 +224,54 @@ def fetch_once(href, dev=False, cap=MAX_BYTES):
         connection.close()
 
 
-def fetch(href, dev=False, cap=MAX_BYTES):
-    """Follow up to three redirects and return the final URL, headers and bytes."""
+#: The fields of which Node's HTTP reader keeps the first line and drops a repeat
+#: (``IncomingMessage``; measured on Node 24.18.0), so the engine's checker reads
+#: the first ``Content-Type``, ``ETag`` or ``Location`` a response sends.
+FIRST_LINE_ONLY = frozenset((
+    "age", "authorization", "content-length", "content-type", "etag", "expires", "from",
+    "host", "if-modified-since", "if-unmodified-since", "last-modified", "location",
+    "max-forwards", "proxy-authorization", "referer", "retry-after", "server", "user-agent"))
+
+
+def _header_fields(pairs):
+    """The response header fields by lower-case name, as Node's reader gives them to
+    the engine's checker: a field of ``FIRST_LINE_ONLY`` sent more than once is its
+    first line; any other is one value, its lines joined with ", " (RFC 9110 section
+    5.3), so a ``Link`` split over two lines is read whole.  (Node joins ``Cookie``
+    with "; " and lists ``Set-Cookie``; the checker reads neither.)"""
+    out = {}
+    for name, value in pairs:
+        key = name.lower()
+        if key not in out:
+            out[key] = value
+        elif key not in FIRST_LINE_ONLY:
+            out[key] = out[key] + ", " + value
+    return out
+
+
+def counted(fetcher, href, dev, cap, budget):
+    """One read through ``fetcher`` within the run's request budget.
+
+    The built-in ``fetch`` is handed the budget and spends it on every request,
+    redirects included.  A fetcher a caller injects keeps its documented call,
+    ``fetcher(url, dev, cap=n)``: the budget is spent once for the call, before it,
+    since its redirects, if any, are its own."""
+    if fetcher is fetch:
+        return fetch(href, dev, cap=cap, budget=budget)
+    budget.spend()
+    return fetcher(href, dev, cap=cap)
+
+
+def fetch(href, dev=False, cap=MAX_BYTES, budget=None):
+    """Follow up to three redirects and return the final URL, headers and bytes.
+
+    ``budget`` (a ``RequestBudget``), when given, is spent once per request,
+    redirects included (AGSC-11-10(c))."""
     current = href
     hop = 0
     while True:
+        if budget is not None:
+            budget.spend()
         status, headers, body = fetch_once(current, dev, cap)
         if status in (301, 302, 303, 307, 308) and headers.get("location"):
             if hop >= REDIRECT_LIMIT:

@@ -15,19 +15,42 @@ compactor and an expander restricted to exactly the term definitions this
 context can contain (string-valued, typed, ``@id``-typed and untyped terms, with
 language-tagged values).  This is not a JSON-LD processor (AGSC-05-11); it is
 the part of one that this profile's own documents exercise.
+
+The context a node publishes at ``/ns/context.jsonld`` ships as
+``data/context.jsonld``: the bytes the engine's ``tools/gen-ns`` derives from its
+vocabulary file, copied by the command in docs/MAINTAINING.md and compared with
+the engine by the suite.  ``graph.py`` compacts ``graph.jsonld`` with it.
 """
 
 import json
+import os
 
 from .jcs import canonicalize
 from .rdf import (ASC, DCTERMS, IRI, PREFIXES, PROV, RDF_TYPE, RDFS, SCHEMA, SKOS, XSD,
                   Literal)
 
-#: AGSC-05-09: the specification's persistent versioned context URL.
-ONTOLOGY_VERSION = "1.0.0"
-CONTEXT_URL = "https://w3id.org/agentic-system-core/ns/%s/context.jsonld" % ONTOLOGY_VERSION
+#: AGSC-05-09 (amended for 1.1): the version in the persistent context address, a
+#: constant ``1.0.0`` at every version 1.x, never the ontology version of AGSC-05-25, so
+#: raising the ontology version changes no byte of any ``graph.jsonld`` (graph-0043; the
+#: engine's ``CONTEXT_VERSION`` of ``src/knowledge/jsonld.js``).
+CONTEXT_VERSION = "1.0.0"
+#: The 1.0 name of ``CONTEXT_VERSION``, kept so that 1.0 code still imports it; deprecated.
+ONTOLOGY_VERSION = CONTEXT_VERSION
+CONTEXT_URL = "https://w3id.org/agentic-system-core/ns/%s/context.jsonld" % CONTEXT_VERSION
 
 _NAMESPACES = dict(PREFIXES)
+_PUBLISHED = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "context.jsonld")
+
+
+def published_bytes():
+    """The bytes of the published context, ``/ns/context.jsonld`` (AGSC-06-32)."""
+    with open(_PUBLISHED, "rb") as handle:
+        return handle.read()
+
+
+def published():
+    """The published context as a document ``{"@context": {...}}``."""
+    return json.loads(published_bytes().decode("utf-8"))
 
 #: External properties a rule of spec/05, 06 or 11 emits, with the @type the
 #: emitting rule fixes (None: language-tagged, no @type).
@@ -234,6 +257,6 @@ def sample_triples(context):
     return triples
 
 
-__all__ = ["CONTEXT_URL", "EXTERNAL_PROPERTIES", "build", "compact", "expand",
-           "roundtrip_bytes", "sample_triples", "term_names", "ASC", "DCTERMS", "PROV",
-           "RDFS", "SCHEMA", "SKOS"]
+__all__ = ["CONTEXT_URL", "EXTERNAL_PROPERTIES", "build", "compact", "expand", "published",
+           "published_bytes", "roundtrip_bytes", "sample_triples", "term_names", "ASC",
+           "DCTERMS", "PROV", "RDFS", "SCHEMA", "SKOS"]
